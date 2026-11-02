@@ -1,0 +1,62 @@
+<Window x:Class="DetsadSklad.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:DetsadSklad.Controls"
+        xmlns:vm="clr-namespace:DetsadSklad.ViewModels"
+        xmlns:views="clr-namespace:DetsadSklad.Views"
+        Title="Детсад-Склад"
+        Width="1280" Height="780" MinWidth="1000" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource PageBrush}"
+        FontFamily="Segoe UI" FontSize="15" Foreground="{StaticResource TextBrush}"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:RequestsViewModel}"><views:RequestsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RequestEditorViewModel}"><views:RequestEditorView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SuppliersViewModel}"><views:SuppliersView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ProductsViewModel}"><views:ProductsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView/></DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="SidebarColumn" Width="218"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Меню -->
+        <Grid Background="{StaticResource SidebarBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Margin="20,22,16,20">
+                <TextBlock Text="Детсад-Склад" FontSize="21" FontWeight="SemiBold" Foreground="White"/>
+                <TextBlock Text="{Binding OrganizationName}" FontSize="13" Foreground="{StaticResource SidebarMutedBrush}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1">
+                <Button Style="{StaticResource NavButton}" Content="Заявки" ui:Ui.Icon="{StaticResource IconDocument}"
+                        ui:Ui.IsActive="{Binding IsRequestsActive}" Command="{Binding ShowRequestsCommand}"/>
+                <Button Style="{StaticResource NavButton}" Content="Поставщики" ui:Ui.Icon="{StaticResource IconTruck}"
+                        ui:Ui.IsActive="{Binding IsSuppliersActive}" Command="{Binding ShowSuppliersCommand}"/>
+                <Button Style="{StaticResource NavButton}" Content="Продукты" ui:Ui.Icon="{StaticResource IconBox}"
+                        ui:Ui.IsActive="{Binding IsProductsActive}" Command="{Binding ShowProductsCommand}"/>
+                <Button Style="{StaticResource NavButton}" Content="Настройки" ui:Ui.Icon="{StaticResource IconSettings}"
+                        ui:Ui.IsActive="{Binding IsSettingsActive}" Command="{Binding ShowSettingsCommand}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Margin="20,12,16,18">
+                <TextBlock Text="С программой работает" FontSize="12.5" Foreground="{StaticResource SidebarMutedBrush}"/>
+                <TextBlock Text="{Binding EmployeeText}" FontSize="14" Foreground="White" TextWrapping="Wrap" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Текущий экран -->
+        <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" Focusable="False"/>
+    </Grid>
+</Window>

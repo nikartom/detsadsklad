@@ -1,0 +1,93 @@
+<UserControl x:Class="DetsadSklad.Views.ProductFormView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:DetsadSklad.Controls">
+    <StackPanel>
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Наименование"/>
+        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" ui:Ui.Hint="Например: Масло сливочное ГОСТ, МДЖ не менее 72,5 %"
+                 AutomationProperties.Name="Наименование"/>
+
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.6*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Тип"/>
+                <TextBox Text="{Binding Kind, UpdateSourceTrigger=PropertyChanged}" ui:Ui.Hint="Например: несоленое" AutomationProperties.Name="Тип"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Сорт"/>
+                <ComboBox ItemsSource="{Binding GradeChoice.Items}" SelectedItem="{Binding GradeChoice.Selected}" AutomationProperties.Name="Сорт"/>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Особенности и состав" Margin="0,12,0,5"/>
+        <TextBox Style="{StaticResource MultilineBox}" Height="60" Text="{Binding Features, UpdateSourceTrigger=PropertyChanged}"
+                 ui:Ui.Hint="Например: без консервантов и красителей" AutomationProperties.Name="Особенности и состав"/>
+
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Упаковка"/>
+                <ComboBox ItemsSource="{Binding PackagingChoice.Items}" SelectedItem="{Binding PackagingChoice.Selected}" AutomationProperties.Name="Какая упаковка"/>
+            </StackPanel>
+            <CheckBox Grid.Column="2" IsChecked="{Binding IndividualPackaging}" VerticalAlignment="Bottom" Margin="0,0,0,8" AutomationProperties.Name="Индивидуальная от производителя">
+                <TextBlock Text="Индивидуальная от производителя" TextWrapping="Wrap"/>
+            </CheckBox>
+        </Grid>
+
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Страна происхождения"/>
+                <ComboBox ItemsSource="{Binding CountryChoice.Items}" SelectedItem="{Binding CountryChoice.Selected}" AutomationProperties.Name="Страна происхождения"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Поставщик"/>
+                <ComboBox ItemsSource="{Binding SupplierOptions}" SelectedItem="{Binding Supplier}" AutomationProperties.Name="Поставщик продукта"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="1.7*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Единица"/>
+                <ComboBox IsEditable="True" ItemsSource="{Binding Units}" Text="{Binding Unit, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Единица измерения"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Цена, руб."/>
+                <TextBox Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}" ui:Ui.Hint="65,00" AutomationProperties.Name="Цена за единицу"/>
+            </StackPanel>
+            <CheckBox Grid.Column="4" IsChecked="{Binding SuitableForChildren}" VerticalAlignment="Bottom" Margin="0,0,0,1">
+                <TextBlock Text="Пригодно для питания детей (воспитанников)" TextWrapping="Wrap" LineHeight="18"/>
+            </CheckBox>
+        </Grid>
+
+        <Border Background="{StaticResource HoverBrush}" CornerRadius="7" Padding="12,9" Margin="0,14,0,0">
+            <StackPanel>
+                <TextBlock Style="{StaticResource ColumnHeader}" Text="Так будет в документе"/>
+                <TextBlock Text="{Binding DocumentPreview}" TextWrapping="Wrap" FontSize="13.5" Margin="0,3,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource ErrorBanner}" Margin="0,12,0,0" Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}">
+            <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold"/>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A2C3F1B7-58D4-4E19-8A6C-90D7E31B6C22}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>DetsadSklad.Tests</RootNamespace>
+    <AssemblyName>DetsadSklad.Tests</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <LangVersion>latest</LangVersion>
+    <Prefer32Bit>false</Prefer32Bit>
+    <LocalRefPack>$(MSBuildThisFileDirectory)..\..\.tools\refs45\build\</LocalRefPack>
+    <TargetFrameworkRootPath Condition="Exists('$(LocalRefPack)')">$(LocalRefPack)</TargetFrameworkRootPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**" />
+    <ProjectReference Include="..\..\src\DetsadSklad\DetsadSklad.csproj">
+      <Project>{6B1F4C52-3E0A-4D7B-9C41-2A7D5E8F1A10}</Project>
+      <Name>DetsadSklad</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

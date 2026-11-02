@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{6B1F4C52-3E0A-4D7B-9C41-2A7D5E8F1A10}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>DetsadSklad</RootNamespace>
+    <AssemblyName>DetsadSklad</AssemblyName>
+    <!-- .NET Framework 4.5: запускается на любой Windows 8/10/11 без установки чего-либо. -->
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <LangVersion>latest</LangVersion>
+    <WarningLevel>4</WarningLevel>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Prefer32Bit>false</Prefer32Bit>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- Сборка без Visual Studio: build.ps1 скачивает справочные сборки .NET 4.5 в .tools -->
+    <LocalRefPack>$(MSBuildThisFileDirectory)..\..\.tools\refs45\build\</LocalRefPack>
+    <TargetFrameworkRootPath Condition="Exists('$(LocalRefPack)')">$(LocalRefPack)</TargetFrameworkRootPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
+    <Page Include="Themes\**\*.xaml;Views\**\*.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**" />
+    <EmbeddedResource Include="Assets\ZayavkaTemplate.docx">
+      <LogicalName>DetsadSklad.ZayavkaTemplate.docx</LogicalName>
+    </EmbeddedResource>
+    <!-- Реквизиты конкретного садика: файл не хранится в git, без него программа стартует пустой. -->
+    <EmbeddedResource Include="Assets\InitialData.local.xml" Condition="Exists('Assets\InitialData.local.xml')">
+      <LogicalName>DetsadSklad.InitialData.xml</LogicalName>
+    </EmbeddedResource>
+    <Resource Include="Assets\app.ico" />
+    <None Include="app.manifest" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

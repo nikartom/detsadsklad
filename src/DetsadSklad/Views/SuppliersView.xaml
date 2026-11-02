@@ -1,0 +1,157 @@
+<UserControl x:Class="DetsadSklad.Views.SuppliersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:DetsadSklad.Controls">
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Margin="0,0,0,14">
+            <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Новый поставщик" MinHeight="46" FontSize="16"
+                    ui:Ui.Icon="{StaticResource IconPlus}" Command="{Binding AddCommand}"/>
+            <TextBlock Text="Поставщики и контракты" Style="{StaticResource PageTitle}" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="160" MaxWidth="280"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="4*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutomationProperties.Name="Список поставщиков">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock x:Name="NameText" Text="{Binding ShortName}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Address}" FontSize="13" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="InactiveNote" Text="Не работаем" FontSize="13" Foreground="{StaticResource WarnBrush}" Visibility="Collapsed"/>
+                                </StackPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                        <Setter TargetName="InactiveNote" Property="Visibility" Value="Visible"/>
+                                        <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource MutedBrush}"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock Style="{StaticResource Muted}" FontSize="16" TextAlignment="Center" Margin="24" VerticalAlignment="Center"
+                               Text="Поставщиков пока нет. Нажмите «Новый поставщик»."
+                               Visibility="{Binding HasRows, Converter={StaticResource BoolToCollapsed}, ConverterParameter=invert}"/>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Style="{StaticResource Card}" Visibility="{Binding HasForm, Converter={StaticResource BoolToCollapsed}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <StackPanel Margin="20,16,18,14">
+                            <TextBlock Text="{Binding FormTitle}" Style="{StaticResource SectionTitle}" FontSize="20" Margin="0,0,0,12"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.4*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Короткое название"/>
+                                    <TextBox Text="{Binding ShortName, UpdateSourceTrigger=PropertyChanged}" ui:Ui.HasError="{Binding ShortNameHasError}"
+                                             ui:Ui.Hint="ООО &quot;Название&quot;" AutomationProperties.Name="Короткое название"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Эл. почта"/>
+                                    <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Электронная почта"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Телефон"/>
+                                    <TextBox Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Телефон"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Полное наименование (как в документе)" Margin="0,10,0,5"/>
+                            <TextBox Style="{StaticResource MultilineBox}" Height="58" Text="{Binding FullName, UpdateSourceTrigger=PropertyChanged}"
+                                     ui:Ui.HasError="{Binding FullNameHasError}" AutomationProperties.Name="Полное наименование"/>
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Адрес" Margin="0,10,0,5"/>
+                            <TextBox Text="{Binding Address, UpdateSourceTrigger=PropertyChanged}" ui:Ui.HasError="{Binding AddressHasError}" AutomationProperties.Name="Адрес"/>
+
+                            <CheckBox IsChecked="{Binding IsActive}" Margin="0,12,0,0">
+                                <TextBlock Text="Работаем с этим поставщиком (предлагать в новых заявках)" TextWrapping="Wrap"/>
+                            </CheckBox>
+
+                            <DockPanel Margin="0,16,0,8">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Content="Добавить контракт" MinHeight="38" VerticalAlignment="Center" Margin="8,0,0,0"
+                                        ui:Ui.Icon="{StaticResource IconPlus}" Command="{Binding AddContractCommand}"/>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Контракты" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock Text="Новый заключается каждый квартал" Style="{StaticResource Muted}" FontSize="13"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <Grid Margin="0,0,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="128"/>
+                                    <ColumnDefinition Width="128"/>
+                                    <ColumnDefinition Width="128"/>
+                                    <ColumnDefinition Width="44"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource ColumnHeader}" Text="Номер контракта"/>
+                                <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="Заключён" Margin="8,0,0,0"/>
+                                <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="Действует с" Margin="8,0,0,0"/>
+                                <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="по" Margin="8,0,0,0"/>
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Contracts}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="128"/>
+                                                <ColumnDefinition Width="128"/>
+                                                <ColumnDefinition Width="128"/>
+                                                <ColumnDefinition Width="44"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" ui:Ui.HasError="{Binding NumberHasError}"
+                                                     ui:Ui.Hint="Номер из договора" ui:Ui.FocusWhen="{Binding FocusNumber, Mode=TwoWay}" AutomationProperties.Name="Номер контракта"/>
+                                            <DatePicker Grid.Column="1" Margin="8,0,0,0" SelectedDate="{Binding SignedOn}" ui:Ui.HasError="{Binding SignedOnHasError}" AutomationProperties.Name="Заключён"/>
+                                            <DatePicker Grid.Column="2" Margin="8,0,0,0" SelectedDate="{Binding ValidFrom}" ui:Ui.HasError="{Binding ValidFromHasError}" AutomationProperties.Name="Действует с"/>
+                                            <DatePicker Grid.Column="3" Margin="8,0,0,0" SelectedDate="{Binding ValidTo}" ui:Ui.HasError="{Binding ValidToHasError}" AutomationProperties.Name="Действует по"/>
+                                            <Button Grid.Column="4" Style="{StaticResource IconButton}" HorizontalAlignment="Right" ui:Ui.Icon="{StaticResource IconClose}"
+                                                    ToolTip="Убрать контракт" AutomationProperties.Name="Убрать контракт"
+                                                    Command="{Binding DataContext.RemoveContractCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,12">
+                        <StackPanel>
+                            <Border Style="{StaticResource ErrorBanner}" Margin="0,0,0,10" Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}">
+                                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold"/>
+                            </Border>
+                            <DockPanel>
+                                <Button Style="{StaticResource PrimaryButton}" Content="Сохранить" MinWidth="130" ui:Ui.Icon="{StaticResource IconCheck}" Command="{Binding SaveCommand}"/>
+                                <TextBlock Text="{Binding SavedNote}" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryHoverBrush}" FontWeight="SemiBold"/>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource DangerButton}" Content="Удалить поставщика" ui:Ui.Icon="{StaticResource IconTrash}" Command="{Binding DeleteCommand}"/>
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
