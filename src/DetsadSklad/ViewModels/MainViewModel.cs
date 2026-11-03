@@ -1,6 +1,8 @@
+using System.Windows;
 using System.Windows.Input;
 using DetsadSklad.Models;
 using DetsadSklad.Services;
+using DetsadSklad.Views;
 
 namespace DetsadSklad.ViewModels
 {
@@ -18,6 +20,7 @@ namespace DetsadSklad.ViewModels
         public ICommand ShowSuppliersCommand { get; }
         public ICommand ShowProductsCommand { get; }
         public ICommand ShowSettingsCommand { get; }
+        public ICommand ShowAboutCommand { get; }
 
         public MainViewModel(DataStore store)
         {
@@ -27,6 +30,7 @@ namespace DetsadSklad.ViewModels
             ShowSuppliersCommand = new RelayCommand(() => Navigate(Section.Suppliers, new SuppliersViewModel(this)));
             ShowProductsCommand = new RelayCommand(() => Navigate(Section.Products, new ProductsViewModel(this)));
             ShowSettingsCommand = new RelayCommand(() => Navigate(Section.Settings, new SettingsViewModel(this)));
+            ShowAboutCommand = new RelayCommand(() => new AboutWindow { Owner = Application.Current.MainWindow }.ShowDialog());
             ShowRequests();
         }
 

@@ -227,6 +227,34 @@
         </Setter>
     </Style>
 
+    <!-- Неприметная ссылка внизу меню -->
+    <Style x:Key="SidebarLinkButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource SidebarTextBrush}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Box" Background="Transparent" BorderThickness="0,0,0,1" BorderBrush="{StaticResource SidebarMutedBrush}" Padding="0,1">
+                        <ContentPresenter RecognizesAccessKey="False"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="White"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Поля ввода -->
     <Style TargetType="TextBox">
         <Setter Property="FontSize" Value="15"/>

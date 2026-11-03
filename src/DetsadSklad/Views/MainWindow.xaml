@@ -53,6 +53,7 @@
             <StackPanel Grid.Row="2" Margin="20,12,16,18">
                 <TextBlock Text="С программой работает" FontSize="12.5" Foreground="{StaticResource SidebarMutedBrush}"/>
                 <TextBlock Text="{Binding EmployeeText}" FontSize="14" Foreground="White" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                <Button Style="{StaticResource SidebarLinkButton}" Content="О программе" Margin="0,12,0,0" Command="{Binding ShowAboutCommand}"/>
             </StackPanel>
         </Grid>
 
