@@ -9,19 +9,23 @@ namespace DetsadSklad.ViewModels
     /// <summary>Строка спецификации на экране загрузки: что будет с продуктом.</summary>
     public class ImportItemRow
     {
-        public ImportItemRow(ParsedItem item, Product existing)
+        public ImportItemRow(ParsedItem item, ImportMatch match)
         {
             Position = item.Position;
             Description = item.Description ?? "(не удалось прочитать наименование)";
             Unit = item.Unit;
             PriceText = RuFormat.DocMoney(item.Price);
-            IsProblem = !item.IsConsistent;
+            IsProblem = !item.IsConsistent || match == null;
+            var existing = match?.Product;
+            var priceChange = existing != null && existing.Price != item.Price ? $", цена была {RuFormat.DocMoney(existing.Price)}" : "";
             if (IsProblem)
                 StatusText = "проверьте";
             else if (existing == null)
                 StatusText = "новый";
+            else if (match.Action == ImportAction.UpdateDescription)
+                StatusText = "описание обновится" + priceChange;
             else if (existing.Price != item.Price)
-                StatusText = $"была {RuFormat.DocMoney(existing.Price)}";
+                StatusText = $"цена была {RuFormat.DocMoney(existing.Price)}";
             else
                 StatusText = "уже есть";
         }
@@ -43,6 +47,7 @@ namespace DetsadSklad.ViewModels
         private readonly DataStore _store;
         private readonly ParsedContract _contract;
         private readonly Supplier _existing;
+        private readonly Contract _existingContract;
         private string _error;
 
         public ContractImportViewModel(DataStore store, ParsedContract contract, string fileName)
@@ -51,7 +56,13 @@ namespace DetsadSklad.ViewModels
             _contract = contract;
             FileName = fileName;
             _existing = ContractImport.FindSupplier(store.Data, contract);
-            Items = contract.Items.Select(i => new ImportItemRow(i, ContractImport.FindProduct(store.Data, _existing, i))).ToList();
+            _existingContract = ContractImport.FindContract(_existing, contract);
+            // У контракта, заведённого раньше, остаётся его «Что поставляет»: по нему уже подобраны категории продуктов.
+            if (!string.IsNullOrWhiteSpace(_existingContract?.Note))
+                contract.Note = _existingContract.Note;
+            var matches = ContractImport.MatchProducts(store.Data, _existing, contract);
+            Items = contract.Items.Select(i => new ImportItemRow(i, matches.FirstOrDefault(m => m.Item == i))).ToList();
+            Missing = ContractImport.NotInContract(store.Data, _existing, contract, matches).Select(p => p.DocumentName).ToList();
         }
 
         public string FileName { get; }
@@ -61,11 +72,18 @@ namespace DetsadSklad.ViewModels
             ? FileName
             : $"Контракт площадки {_contract.ProfileName} · {FileName}";
         public List<ImportItemRow> Items { get; }
+
+        /// <summary>Продукты этой группы, которых в контракте нет: останутся в программе, лишние можно удалить.</summary>
+        public List<string> Missing { get; }
+        public bool HasMissing => Missing.Count > 0;
+        public string MissingTitle => $"Нет в этом контракте: {Missing.Count}";
         public bool IsNewSupplier => _existing == null;
         public bool IsKnownSupplier => _existing != null;
 
         public string KnownSupplierText => _existing == null ? null
-            : $"Поставщик {_existing.ShortName} уже есть в программе — контракт добавится к нему.";
+            : _existingContract != null
+                ? $"Поставщик {_existing.ShortName} и контракт № {_existingContract.Number} уже есть в программе. Контракт обновится по этому файлу: недостающие продукты добавятся, у остальных описание и цена станут как в контракте."
+                : $"Поставщик {_existing.ShortName} уже есть в программе — контракт добавится к нему.";
 
         public string ShortName { get => _contract.SupplierShortName; set => Edit(() => _contract.SupplierShortName = value); }
         public string FullName { get => _contract.SupplierFullName; set => Edit(() => _contract.SupplierFullName = value); }
@@ -83,7 +101,6 @@ namespace DetsadSklad.ViewModels
             : null;
 
         public string ItemsTitle => $"Продукты по контракту: {Items.Count}";
-        public int NewCount => Items.Count(i => i.StatusText == "новый");
 
         /// <summary>Совпала ли сумма позиций с ценой контракта — значит, ни одна строка не потерялась.</summary>
         public bool IsComplete => _contract.ItemsAreComplete;
@@ -107,7 +124,7 @@ namespace DetsadSklad.ViewModels
         /// <summary>Сохраняет; false — что-то не заполнено, причина показана внизу экрана.</summary>
         public bool Save()
         {
-            Error = ContractImport.FindProblem(_existing, _contract);
+            Error = ContractImport.FindProblem(_contract);
             if (Error != null)
                 return false;
             ContractImport.Apply(_store.Data, _contract, _existing);

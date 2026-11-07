@@ -14,13 +14,14 @@ namespace DetsadSklad.Tests
 
         private static readonly double[] Borders = { 50, 74, 181, 269, 340, 415, 487, 560 };
 
-        public static byte[] Build(string number = Number, string firstPrice = "65,50", string firstSum = "655,00", string contractPrice = "1250.50")
+        public static byte[] Build(string number = Number, string firstPrice = "65,50", string firstSum = "655,00", string contractPrice = "1250.50",
+            string firstName = "Молоко питьевое ГОСТ.", string subject = "(молочная продукция)")
         {
             var pdf = new TestPdf();
             pdf.NewPage()
                 .Text(223, 45, "КОНТРАКТ ЗМО № " + number)
                 .Text(229, 56, "на поставку продуктов питания")
-                .Text(244, 68, "(молочная продукция)")
+                .Text(244, 68, subject)
                 .Text(53, 83, "г. Примерск").Text(355, 83, "«___» сентября 2026 года")
                 .Text(50, 124, "(МБДОУ «Детский сад №1»), именуемое в дальнейшем «Заказчик», с одной стороны и ОБЩЕСТВО С ОГРАНИЧЕННОЙ")
                 .Text(50, 135, "ОТВЕТСТВЕННОСТЬЮ \"РОМАШКА\" (ООО \"Ромашка\"), именуемый в дальнейшем «Поставщик», с другой стороны,")
@@ -49,7 +50,7 @@ namespace DetsadSklad.Tests
                 .Text(196, 232, "классификатора").Text(286, 232, "измерения");
             foreach (var x in Borders)
                 pdf.VLine(x, 180, 800);
-            pdf.Text(57, 290, "1").Text(81, 290, "Молоко питьевое ГОСТ.").Text(188, 290, "10.51.11.111 / Молоко")
+            pdf.Text(57, 290, "1").Text(81, 290, firstName).Text(188, 290, "10.51.11.111 / Молоко")
                 // Слово кода, вылезшее за линию таблицы в колонку единиц, — как бывает у площадки.
                 .Text(270, 290, "и").Text(276, 290, "Литр;")
                 .Text(347, 290, "10,00").Text(421, 291, firstPrice).Text(494, 291, firstSum)

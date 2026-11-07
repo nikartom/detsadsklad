@@ -59,6 +59,9 @@ namespace DetsadSklad.Tests
             Run(nameof(OtherContractsAreNotGuessed), OtherContractsAreNotGuessed);
             Run(nameof(ContractImportCreatesSupplierAndProducts), ContractImportCreatesSupplierAndProducts);
             Run(nameof(NextQuarterContractUpdatesPrices), NextQuarterContractUpdatesPrices);
+            Run(nameof(ManualContractIsUpdatedByImport), ManualContractIsUpdatedByImport);
+            Run(nameof(NextQuarterWithOtherNoteKeepsProducts), NextQuarterWithOtherNoteKeepsProducts);
+            Run(nameof(ChangedItemIsListedAsMissing), ChangedItemIsListedAsMissing);
             Run(nameof(ScreensOpenWithoutErrors), ScreensOpenWithoutErrors);
             // Настоящие контракты в репозиторий не кладутся: проверка запускается, только если указать папку с ними.
             var realContracts = Environment.GetEnvironmentVariable("DETSAD_CONTRACTS");
@@ -643,7 +646,7 @@ namespace DetsadSklad.Tests
             var data = new AppData();
             var contract = ContractPdfReader.Read(TestContract.Build());
             AssertEqual(null, ContractImport.FindSupplier(data, contract), "поставщика ещё нет");
-            AssertEqual(null, ContractImport.FindProblem(null, contract), "всё заполнено");
+            AssertEqual(null, ContractImport.FindProblem(contract), "всё заполнено");
 
             var supplier = ContractImport.Apply(data, contract, null);
             AssertEqual(1, data.Suppliers.Count, "поставщик добавлен");
@@ -661,8 +664,12 @@ namespace DetsadSklad.Tests
             AssertEqual("Молочная продукция", milk.Category, "категория = что поставляет контракт");
             AssertEqual(2, RequestLogic.ProductsFor(data, supplier, saved).Count(), "продукты предлагаются в заявке по этому контракту");
 
+            // Тот же файл ещё раз: ничего не задваивается и не меняется.
             var again = ContractPdfReader.Read(TestContract.Build());
-            AssertEqual(true, ContractImport.FindProblem(supplier, again) != null, "тот же контракт второй раз не загружается");
+            AssertEqual(true, ContractImport.MatchProducts(data, supplier, again).All(m => m.Action == ImportAction.Same), "всё уже есть");
+            ContractImport.Apply(data, again, supplier);
+            AssertEqual(1, supplier.Contracts.Count, "контракт не задвоился");
+            AssertEqual(2, data.Products.Count, "продукты не задвоились");
 
             // Поставщик, заведённый вручную без ИНН, узнаётся по названию с другими кавычками.
             var manual = new AppData();
@@ -677,7 +684,7 @@ namespace DetsadSklad.Tests
             var next = ContractPdfReader.Read(TestContract.Build(number: "2027.ТЕСТ.1", firstPrice: "70,00", firstSum: "700,00", contractPrice: "1295.50"));
             AssertEqual(true, next.ItemsAreComplete, "следующий контракт прочитан");
             AssertEqual(supplier, ContractImport.FindSupplier(data, next), "поставщик узнан по ИНН");
-            AssertEqual(null, ContractImport.FindProblem(supplier, next), "другой номер — можно загружать");
+            AssertEqual(null, ContractImport.FindContract(supplier, next), "другой номер — новый контракт");
 
             ContractImport.Apply(data, next, supplier);
             AssertEqual(1, data.Suppliers.Count, "поставщик не задвоился");
@@ -685,6 +692,81 @@ namespace DetsadSklad.Tests
             AssertEqual(2, data.Products.Count, "продукты не задвоились");
             AssertEqual(70m, data.Products[0].Price, "цена обновилась");
             AssertEqual(119.10m, data.Products[1].Price, "неизменная цена осталась");
+        }
+
+        /// <summary>Контракт уже заведён вручную, с продуктами, описанными по-своему: загрузка обновляет его, а не дублирует.</summary>
+        private static void ManualContractIsUpdatedByImport()
+        {
+            var data = new AppData();
+            var supplier = new Supplier { ShortName = "ООО «Ромашка»", FullName = "ООО «Ромашка»", Address = "старый адрес" };
+            supplier.Contracts.Add(new Contract { Number = TestContract.Number, Note = "молочка", SignedOn = new DateTime(2026, 9, 1), ValidFrom = new DateTime(2026, 9, 1), ValidTo = new DateTime(2026, 9, 30) });
+            data.Suppliers.Add(supplier);
+            // Наименование — начало описания из контракта, а особенности записаны по-своему.
+            data.Products.Add(new Product { Name = "Молоко питьевое", Kind = "пастеризованное", SuitableForChildren = true, Unit = "л", Price = 60m, SupplierId = supplier.Id, Category = "молочка" });
+            // Наименование совпадает с первой фразой контракта.
+            data.Products.Add(new Product { Name = "Творог ГОСТ", Grade = "Высший", Unit = "кг", Price = 119.10m, SupplierId = supplier.Id, Category = "молочка" });
+            // Продукт, которого в контракте нет, остаётся как был.
+            data.Products.Add(new Product { Name = "Кефир", Unit = "л", Price = 80m, SupplierId = supplier.Id, Category = "молочка" });
+
+            var contract = ContractPdfReader.Read(TestContract.Build());
+            AssertEqual(supplier, ContractImport.FindSupplier(data, contract), "поставщик узнан по названию");
+            AssertEqual(supplier.Contracts[0], ContractImport.FindContract(supplier, contract), "контракт узнан по номеру");
+            var matches = ContractImport.MatchProducts(data, supplier, contract);
+            AssertEqual(data.Products[0], matches[0].Product, "молоко узнано по началу описания");
+            AssertEqual(data.Products[1], matches[1].Product, "творог узнан по наименованию");
+            AssertEqual(ImportAction.UpdateDescription, matches[0].Action, "описание молока обновится");
+
+            ContractImport.Apply(data, contract, supplier);
+            AssertEqual(1, supplier.Contracts.Count, "контракт не задвоился");
+            AssertEqual(3, data.Products.Count, "продукты не задвоились");
+            AssertEqual(TestContract.Inn, supplier.Inn, "ИНН дописан");
+            AssertEqual("старый адрес", supplier.Address, "заполненное не перезаписывается");
+            var saved = supplier.Contracts[0];
+            AssertEqual("молочка", saved.Note, "«что поставляет» осталось прежним");
+            AssertEqual(new DateTime(2026, 12, 31), saved.ValidTo, "даты — из контракта");
+            AssertEqual(TestContract.FirstItem.TrimEnd('.'), data.Products[0].DocumentName, "описание молока — как в контракте");
+            AssertEqual(65.50m, data.Products[0].Price, "цена молока обновилась");
+            AssertEqual("Литр; Кубический дециметр", data.Products[0].Unit, "единица — как в контракте");
+            AssertEqual(TestContract.SecondItem.TrimEnd('.'), data.Products[1].DocumentName, "описание творога — как в контракте");
+            AssertEqual("Кефир", data.Products[2].DocumentName, "продукт не из контракта не тронут");
+        }
+
+        /// <summary>
+        /// Старый контракт заведён вручную с «Что поставляет» = «молочка», новый пришёл с «Молочная продукция».
+        /// Продукты должны остаться в заявках по новому контракту.
+        /// </summary>
+        private static void NextQuarterWithOtherNoteKeepsProducts()
+        {
+            var data = new AppData();
+            var supplier = new Supplier { ShortName = "ООО \"Ромашка\"", FullName = "ООО \"Ромашка\"", Inn = TestContract.Inn };
+            supplier.Contracts.Add(new Contract { Number = "2026.РУЧНОЙ", Note = "молочка", SignedOn = new DateTime(2026, 7, 1), ValidFrom = new DateTime(2026, 7, 1), ValidTo = new DateTime(2026, 9, 30) });
+            data.Suppliers.Add(supplier);
+            data.Products.Add(new Product { Name = "Молоко питьевое ГОСТ", Unit = "л", Price = 60m, SupplierId = supplier.Id, Category = "молочка" });
+            data.Products.Add(new Product { Name = "Творог ГОСТ", Unit = "кг", Price = 110m, SupplierId = supplier.Id, Category = "молочка" });
+
+            ContractImport.Apply(data, ContractPdfReader.Read(TestContract.Build()), supplier);
+            var fresh = supplier.Contracts.Single(c => c.Number == TestContract.Number);
+            AssertEqual("Молочная продукция", fresh.Note, "у нового контракта — из файла");
+            AssertEqual(2, data.Products.Count, "продукты не задвоились");
+            AssertEqual(true, data.Products.All(p => p.Category == "Молочная продукция"), "категория продуктов — как у нового контракта");
+            AssertEqual(2, RequestLogic.ProductsFor(data, supplier, fresh).Count(), "оба продукта предлагаются в заявке по новому контракту");
+        }
+
+        /// <summary>В новом контракте позиция описана иначе: старый продукт не удаляется, но показывается в списке «нет в контракте».</summary>
+        private static void ChangedItemIsListedAsMissing()
+        {
+            var data = new AppData();
+            var supplier = ContractImport.Apply(data, ContractPdfReader.Read(TestContract.Build()), null);
+            var next = ContractPdfReader.Read(TestContract.Build(number: "2027.ТЕСТ.1", firstName: "Молоко ультрапастеризованное ГОСТ."));
+            var matches = ContractImport.MatchProducts(data, supplier, next);
+            AssertEqual(ImportAction.Add, matches[0].Action, "изменившаяся позиция — новый продукт");
+            AssertEqual(ImportAction.Same, matches[1].Action, "творог тот же");
+            var missing = ContractImport.NotInContract(data, supplier, next, matches);
+            AssertEqual(1, missing.Count, "старое молоко в новом контракте не нашлось");
+            AssertEqual("Молоко питьевое ГОСТ", missing[0].Name, "его и показываем");
+
+            ContractImport.Apply(data, next, supplier);
+            AssertEqual(3, data.Products.Count, "старое молоко не удалено — прежний контракт может ещё действовать");
         }
 
         private static void RealContractsAreReadCompletely(string folder)
