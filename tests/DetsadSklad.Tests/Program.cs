@@ -33,7 +33,13 @@ namespace DetsadSklad.Tests
             Run(nameof(NumberingContinuesPerContract), NumberingContinuesPerContract);
             Run(nameof(ContractIsPickedByDeliveryDate), ContractIsPickedByDeliveryDate);
             Run(nameof(NextWorkdaySkipsWeekend), NextWorkdaySkipsWeekend);
-            Run(nameof(NewContractPeriodFollowsPreviousQuarter), NewContractPeriodFollowsPreviousQuarter);
+            Run(nameof(SeveralContractsAreNotGuessed), SeveralContractsAreNotGuessed);
+            Run(nameof(FinishedContractsAreNotOffered), FinishedContractsAreNotOffered);
+            Run(nameof(NewContractStartsOnSigningDay), NewContractStartsOnSigningDay);
+            Run(nameof(RenewalKeepsNoteAndCategories), RenewalKeepsNoteAndCategories);
+            Run(nameof(ContractOffersProductsOfItsCategories), ContractOffersProductsOfItsCategories);
+            Run(nameof(PastedLinesBecomeOneLine), PastedLinesBecomeOneLine);
+            Run(nameof(ContractNoteAndCategoriesAreSaved), ContractNoteAndCategoriesAreSaved);
             Run(nameof(SearchFindsByAnyField), SearchFindsByAnyField);
             Run(nameof(StoreRoundTrip), StoreRoundTrip);
             Run(nameof(StoreRecoversFromCorruptFile), StoreRecoversFromCorruptFile);
@@ -48,6 +54,7 @@ namespace DetsadSklad.Tests
             Run(nameof(ChoicesCombineDefaultsWithUsedValues), ChoicesCombineDefaultsWithUsedValues);
             Run(nameof(DefaultsContainNoCatalogData), DefaultsContainNoCatalogData);
             Run(nameof(InitialDataFileIsReadAndUpgraded), InitialDataFileIsReadAndUpgraded);
+            Run(nameof(ScreensOpenWithoutErrors), ScreensOpenWithoutErrors);
 
             Console.WriteLine($"Пройдено: {_passed}, не пройдено: {_failed}");
             return _failed == 0 ? 0 : 1;
@@ -171,9 +178,122 @@ namespace DetsadSklad.Tests
             supplier.Contracts.Add(q4);
             AssertEqual("Q3", RequestLogic.PickContract(supplier, new DateTime(2026, 8, 1)).Number, "август");
             AssertEqual("Q4", RequestLogic.PickContract(supplier, new DateTime(2026, 11, 2)).Number, "ноябрь");
-            AssertEqual("Q4", RequestLogic.PickContract(supplier, new DateTime(2027, 2, 1)).Number, "нет действующего — самый свежий");
+            AssertEqual(null, RequestLogic.PickContract(supplier, new DateTime(2027, 2, 1)), "нет действующего — не подставляем");
             AssertEqual(null, RequestLogic.PickContract(new Supplier(), DateTime.Today), "контрактов нет");
         }
+
+        private static void SeveralContractsAreNotGuessed()
+        {
+            var supplier = new Supplier();
+            var groceryQ3 = Quarter("Б-3", "Бакалея", 2026, 7);
+            var grocery = Quarter("Б-4", "Бакалея", 2026, 10);
+            var frozen = Quarter("З-4", "Заморозка", 2026, 10);
+            supplier.Contracts.AddRange(new[] { groceryQ3, grocery, frozen });
+            var november = new DateTime(2026, 11, 2);
+
+            AssertEqual(null, RequestLogic.PickContract(supplier, november), "два действующих — пусть выберет пользователь");
+            AssertEqual("Б-4", RequestLogic.PickContract(supplier, november, groceryQ3).Number, "повтор заявки — продолжение бакалеи");
+            AssertEqual("З-4", RequestLogic.PickContract(supplier, november, frozen).Number, "та же заморозка");
+            AssertEqual(true, grocery.DisplayName.EndsWith("· Бакалея"), "примечание видно в списке: " + grocery.DisplayName);
+        }
+
+        private static void FinishedContractsAreNotOffered()
+        {
+            var supplier = new Supplier();
+            supplier.Contracts.Add(Quarter("Q3", "", 2026, 7));
+            supplier.Contracts.Add(Quarter("Q4", "", 2026, 10));
+            supplier.Contracts.Add(Quarter("Q1", "", 2027, 1));
+            var open = RequestLogic.OpenContracts(supplier, new DateTime(2026, 11, 2)).Select(c => c.Number).ToList();
+            AssertEqual("Q4,Q1", string.Join(",", open), "завершённый не предлагается, будущий — да");
+            AssertEqual(true, supplier.Contracts[0].IsFinished(new DateTime(2026, 10, 1)), "срок вышел");
+            AssertEqual(false, supplier.Contracts[0].IsFinished(new DateTime(2026, 9, 30)), "последний день ещё действует");
+        }
+
+        private static void NewContractStartsOnSigningDay()
+        {
+            var contract = RequestLogic.SuggestNewContract(new DateTime(2026, 11, 2));
+            AssertEqual(new DateTime(2026, 11, 2), contract.SignedOn, "заключён сегодня");
+            AssertEqual(contract.SignedOn, contract.ValidFrom, "действует со дня заключения");
+            AssertEqual(new DateTime(2026, 12, 31), contract.ValidTo, "до конца квартала");
+        }
+
+        private static void RenewalKeepsNoteAndCategories()
+        {
+            var previous = Quarter("Б-4", "Бакалея", 2026, 10);
+
+            var late = RequestLogic.SuggestRenewal(previous, new DateTime(2027, 1, 12));
+            AssertEqual("Бакалея", late.Note, "примечание");
+            AssertEqual(new DateTime(2027, 1, 12), late.ValidFrom, "после окончания — со дня заключения");
+            AssertEqual(new DateTime(2027, 3, 31), late.ValidTo, "до конца квартала");
+            AssertEqual(null, late.Number, "номер новый");
+
+            var early = RequestLogic.SuggestRenewal(previous, new DateTime(2026, 12, 24));
+            AssertEqual(new DateTime(2027, 1, 1), early.ValidFrom, "действует, когда закончится прежний");
+            AssertEqual(new DateTime(2027, 3, 31), early.ValidTo, "следующий квартал");
+        }
+
+        private static void ContractOffersProductsOfItsCategories()
+        {
+            var data = new AppData();
+            var supplier = new Supplier();
+            var other = new Supplier();
+            data.Suppliers.Add(supplier);
+            data.Suppliers.Add(other);
+            data.Products.Add(new Product { Name = "Гречка", Category = "Бакалея", SupplierId = supplier.Id });
+            data.Products.Add(new Product { Name = "Пельмени", Category = "Заморозка", SupplierId = supplier.Id });
+            data.Products.Add(new Product { Name = "Соль", Category = "", SupplierId = supplier.Id });
+            data.Products.Add(new Product { Name = "Рис", Category = "бакалея ", SupplierId = other.Id });
+            data.Products.Add(new Product { Name = "Сахар", Category = "Бакалея", SupplierId = null });
+
+            var grocery = Quarter("Б", " бакалея", 2026, 10);
+            AssertEqual("Гречка,Соль,Сахар", Names(RequestLogic.ProductsFor(data, supplier, grocery)), "бакалея + без категории + общий");
+            AssertEqual(true, RequestLogic.FiltersByCategory(data, supplier, grocery), "отбор по категории");
+
+            var noNote = Quarter("В", "", 2026, 10);
+            AssertEqual("Гречка,Пельмени,Соль,Сахар", Names(RequestLogic.ProductsFor(data, supplier, noNote)), "без примечания — всё поставщика");
+            var unknown = Quarter("Г", "Молочка", 2026, 10);
+            AssertEqual("Гречка,Пельмени,Соль,Сахар", Names(RequestLogic.ProductsFor(data, supplier, unknown)), "категории ещё не проставлены — ничего не прячем");
+            AssertEqual(false, RequestLogic.FiltersByCategory(data, supplier, unknown), "нет отбора");
+            AssertEqual("Рис,Сахар", Names(RequestLogic.ProductsFor(data, other, grocery)), "регистр и пробелы не мешают");
+        }
+
+        private static readonly string CrLf = new string(new[] { (char)13, (char)10 });
+
+        private static void PastedLinesBecomeOneLine()
+        {
+            AssertEqual("660000, г. Красноярск, ул. Ленина, д. 1, оф. 2",
+                TextTools.ToSingleLine("660000, г. Красноярск," + CrLf + "  ул. Ленина, д. 1," + CrLf + CrLf + "оф. 2" + CrLf), "адрес из контракта");
+            AssertEqual("а б", TextTools.ToSingleLine("а" + (char)10 + "б"), "переводы строк Unix");
+            AssertEqual("без  переноса", TextTools.ToSingleLine("без  переноса"), "строку без переносов не трогаем");
+            AssertEqual(null, TextTools.ToSingleLine(null), "пусто");
+        }
+
+        private static void ContractNoteAndCategoriesAreSaved()
+        {
+            WithTempDir(dir =>
+            {
+                var store = new DataStore(dir);
+                store.Load();
+                TestData.Fill(store.Data);
+                store.Data.Suppliers[0].Contracts[0].Note = "Молочная продукция";
+                store.Data.Products[0].Category = "Молочная продукция";
+                store.Save();
+
+                var again = new DataStore(dir);
+                again.Load();
+                AssertEqual("Молочная продукция", again.Data.Suppliers[0].Contracts[0].Note, "примечание");
+                AssertEqual("Молочная продукция", again.Data.Products[0].Category, "категория продукта");
+                AssertEqual(true, ProductChoices.Categories(again.Data).Contains("Молочная продукция"), "примечание предлагается как категория");
+            });
+        }
+
+        private static Contract Quarter(string number, string note, int year, int firstMonth)
+        {
+            var from = new DateTime(year, firstMonth, 1);
+            return new Contract { Number = number, Note = note, SignedOn = from, ValidFrom = from, ValidTo = from.AddMonths(3).AddDays(-1) };
+        }
+
+        private static string Names(IEnumerable<Product> products) => string.Join(",", products.Select(p => p.Name));
 
         private static void NextWorkdaySkipsWeekend()
         {
@@ -181,18 +301,7 @@ namespace DetsadSklad.Tests
             AssertEqual(new DateTime(2026, 11, 3), RequestLogic.NextWorkday(new DateTime(2026, 11, 2)), "понедельник → вторник");
         }
 
-        private static void NewContractPeriodFollowsPreviousQuarter()
-        {
-            var supplier = new Supplier();
-            RequestLogic.SuggestContractPeriod(supplier, new DateTime(2026, 11, 2), out var from, out var to);
-            AssertEqual(new DateTime(2026, 10, 1), from, "нет контрактов — текущий квартал");
-            AssertEqual(new DateTime(2026, 12, 31), to, "конец квартала");
 
-            supplier.Contracts.Add(new Contract { ValidFrom = from, ValidTo = to });
-            RequestLogic.SuggestContractPeriod(supplier, new DateTime(2026, 11, 2), out from, out to);
-            AssertEqual(new DateTime(2027, 1, 1), from, "следующий квартал");
-            AssertEqual(new DateTime(2027, 3, 31), to, "конец следующего квартала");
-        }
 
         private static void SearchFindsByAnyField()
         {
@@ -444,6 +553,16 @@ namespace DetsadSklad.Tests
                     AssertEqual(4, data.Products.Count, "продукты");
                     AssertEqual(AppData.CurrentSchemaVersion, data.SchemaVersion, "версия");
                 }
+            });
+        }
+
+        private static void ScreensOpenWithoutErrors()
+        {
+            WithTempDir(dir =>
+            {
+                var problems = ViewSmoke.Run(dir);
+                if (problems.Count > 0)
+                    throw new Exception("ошибки на экранах:" + Environment.NewLine + string.Join(Environment.NewLine, problems));
             });
         }
 

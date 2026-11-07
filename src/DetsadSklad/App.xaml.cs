@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Threading;
 using DetsadSklad.Services;
@@ -28,6 +29,7 @@ namespace DetsadSklad
             base.OnStartup(e);
             SetRussianCulture();
             DispatcherUnhandledException += OnUnhandledException;
+            EventManager.RegisterClassHandler(typeof(TextBox), DataObject.PastingEvent, new DataObjectPastingEventHandler(OnPasting));
 
             _store = new DataStore(ResolveDataDir());
             if (!TryTakeLock())
@@ -79,6 +81,21 @@ namespace DetsadSklad
             CultureInfo.DefaultThreadCurrentUICulture = ru;
             FrameworkElement.LanguageProperty.OverrideMetadata(
                 typeof(FrameworkElement), new FrameworkPropertyMetadata(XmlLanguage.GetLanguage("ru-RU")));
+        }
+
+        /// <summary>Однострочное поле вставило бы только первую строку — склеиваем строки через пробел.</summary>
+        private static void OnPasting(object sender, DataObjectPastingEventArgs e)
+        {
+            if (!(sender is TextBox box) || box.AcceptsReturn || !e.SourceDataObject.GetDataPresent(DataFormats.UnicodeText, true))
+                return;
+            var text = e.SourceDataObject.GetData(DataFormats.UnicodeText, true) as string;
+            var singleLine = TextTools.ToSingleLine(text);
+            if (singleLine == text)
+                return;
+            var replacement = new DataObject();
+            replacement.SetData(DataFormats.UnicodeText, singleLine);
+            replacement.SetData(DataFormats.Text, singleLine);
+            e.DataObject = replacement;
         }
 
         /// <summary>

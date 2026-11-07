@@ -9,6 +9,23 @@
 
         <Grid Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Категория"/>
+                <ComboBox ItemsSource="{Binding CategoryChoice.Items}" SelectedItem="{Binding CategoryChoice.Selected}" AutomationProperties.Name="Категория"
+                          ToolTip="Как в графе «Что поставляет» у контракта: продукт будет предлагаться в заявках по этому контракту"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Поставщик"/>
+                <ComboBox ItemsSource="{Binding SupplierOptions}" SelectedItem="{Binding Supplier}" AutomationProperties.Name="Поставщик продукта"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.6*"/>
                 <ColumnDefinition Width="14"/>
                 <ColumnDefinition Width="*"/>
@@ -52,19 +69,16 @@
                 <TextBlock Style="{StaticResource FieldLabel}" Text="Страна происхождения"/>
                 <ComboBox ItemsSource="{Binding CountryChoice.Items}" SelectedItem="{Binding CountryChoice.Selected}" AutomationProperties.Name="Страна происхождения"/>
             </StackPanel>
-            <StackPanel Grid.Column="2">
-                <TextBlock Style="{StaticResource FieldLabel}" Text="Поставщик"/>
-                <ComboBox ItemsSource="{Binding SupplierOptions}" SelectedItem="{Binding Supplier}" AutomationProperties.Name="Поставщик продукта"/>
-            </StackPanel>
+            <CheckBox Grid.Column="2" IsChecked="{Binding SuitableForChildren}" VerticalAlignment="Bottom" Margin="0,0,0,1">
+                <TextBlock Text="Пригодно для питания детей (воспитанников)" TextWrapping="Wrap" LineHeight="18"/>
+            </CheckBox>
         </Grid>
 
         <Grid Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="14"/>
-                <ColumnDefinition Width="1.7*"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Style="{StaticResource FieldLabel}" Text="Единица"/>
@@ -74,9 +88,7 @@
                 <TextBlock Style="{StaticResource FieldLabel}" Text="Цена, руб."/>
                 <TextBox Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}" ui:Ui.Hint="65,00" AutomationProperties.Name="Цена за единицу"/>
             </StackPanel>
-            <CheckBox Grid.Column="4" IsChecked="{Binding SuitableForChildren}" VerticalAlignment="Bottom" Margin="0,0,0,1">
-                <TextBlock Text="Пригодно для питания детей (воспитанников)" TextWrapping="Wrap" LineHeight="18"/>
-            </CheckBox>
+
         </Grid>
 
         <Border Background="{StaticResource HoverBrush}" CornerRadius="7" Padding="12,9" Margin="0,14,0,0">

@@ -22,6 +22,10 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
     <Compile Include="**\*.cs" Exclude="bin\**;obj\**" />
     <ProjectReference Include="..\..\src\DetsadSklad\DetsadSklad.csproj">
       <Project>{6B1F4C52-3E0A-4D7B-9C41-2A7D5E8F1A10}</Project>

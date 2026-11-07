@@ -189,11 +189,13 @@ namespace DetsadSklad.ViewModels
                 if (!Set(ref _supplier, value))
                     return;
                 _isDirty = true;
+                var previous = _contract;
                 RebuildContracts();
-                SelectedContract = RequestLogic.PickContract(_supplier, _deliveryDate ?? DateTime.Today);
+                SelectedContract = PickContract(_deliveryDate ?? DateTime.Today, previous);
                 RebuildCatalog();
                 OnPropertyChanged(nameof(SupplierHasError));
                 OnPropertyChanged(nameof(NoContractsNote));
+                OnPropertyChanged(nameof(ChooseContractNote));
             }
         }
 
@@ -207,6 +209,8 @@ namespace DetsadSklad.ViewModels
                 _isDirty = true;
                 if (_numberIsAutomatic && _contract != null)
                     SetNumberAutomatically();
+                RebuildCatalog();
+                OnPropertyChanged(nameof(ChooseContractNote));
                 OnPropertyChanged(nameof(ContractWarning));
                 OnPropertyChanged(nameof(ContractHasError));
                 OnPropertyChanged(nameof(NumberHasError));
@@ -236,7 +240,7 @@ namespace DetsadSklad.ViewModels
                 _isDirty = true;
                 // Для новой заявки контракт подбирается сам под дату поставки.
                 if (_existing == null && _deliveryDate.HasValue && _supplier != null && _contract != null && !_contract.Covers(_deliveryDate.Value))
-                    SelectedContract = RequestLogic.PickContract(_supplier, _deliveryDate.Value);
+                    SelectedContract = RequestLogic.PickContract(_supplier, _deliveryDate.Value, _contract) ?? _contract;
                 OnPropertyChanged(nameof(ContractWarning));
                 OnPropertyChanged(nameof(DateWarning));
                 OnPropertyChanged(nameof(DeliveryDateHasError));
@@ -307,10 +311,21 @@ namespace DetsadSklad.ViewModels
             ? "Поставщиков пока нет. Добавьте поставщика и контракт на странице «Поставщики»."
             : _supplier != null && _supplier.Contracts.Count == 0
                 ? "У этого поставщика ещё нет контрактов. Добавьте контракт на странице «Поставщики»."
-                : null;
+                : _supplier != null && Contracts.Count == 0
+                    ? "У этого поставщика нет действующих контрактов: срок закончился. Продлите контракт на странице «Поставщики»."
+                    : null;
+
+        public string ChooseContractNote => _contract == null && Contracts.Count > 1
+            ? "У поставщика несколько действующих контрактов — выберите, по какому эта заявка."
+            : null;
 
         public string ContractWarning => _contract != null && _deliveryDate.HasValue && !_contract.Covers(_deliveryDate.Value)
-            ? $"Этот контракт действует {_contract.PeriodText}, а дата поставки {RuFormat.ShortDate(_deliveryDate.Value)} в этот срок не попадает. Если контракт уже новый, добавьте его на странице «Поставщики»."
+            ? $"Этот контракт действует {_contract.PeriodText}, а дата поставки {RuFormat.ShortDate(_deliveryDate.Value)} в этот срок не попадает. Выберите другой контракт или дату поставки."
+            : null;
+
+        /// <summary>Подсказка над каталогом: какие продукты показаны.</summary>
+        public string CatalogNote => !_showAllProducts && RequestLogic.FiltersByCategory(_data, _supplier, _contract)
+            ? "Показаны продукты: " + _contract.Note.Trim()
             : null;
 
         public string DateWarning => _sentDate.HasValue && _deliveryDate.HasValue && _deliveryDate < _sentDate
@@ -413,7 +428,11 @@ namespace DetsadSklad.ViewModels
             if (_supplier == null)
                 return "Выберите поставщика.";
             if (_contract == null)
-                return "Выберите контракт. Если его нет в списке, добавьте на странице «Поставщики».";
+                return "Выберите контракт. Если его нет в списке, продлите или добавьте его на странице «Поставщики».";
+            // Старую заявку можно поправить как есть; новую — только в срок контракта.
+            var periodMatters = _existing == null || _existing.ContractId != _contract.Id || _existing.DeliveryDate != _deliveryDate;
+            if (periodMatters && _deliveryDate.HasValue && !_contract.Covers(_deliveryDate.Value))
+                return $"Контракт № {_contract.Number} действует {_contract.PeriodText}. Укажите дату поставки в этот срок или выберите другой контракт.";
             if (!TryGetNumber(out var number))
                 return "Укажите номер заявки — целое число, например 8.";
             if (IsNumberTaken(number))
@@ -468,8 +487,8 @@ namespace DetsadSklad.ViewModels
         private void LoadExisting(SupplyRequest request)
         {
             _supplier = _data.FindSupplier(request.SupplierId);
-            RebuildContracts();
             _contract = _supplier?.FindContract(request.ContractId);
+            RebuildContracts();
             _numberText = request.Number.ToString();
             _deliveryDate = request.DeliveryDate;
             _sentDate = request.SentDate;
@@ -490,8 +509,10 @@ namespace DetsadSklad.ViewModels
                 Suppliers.Add(_supplier);
             if (_supplier == null && Suppliers.Count == 1)
                 _supplier = Suppliers[0];
+            // Повтор заявки: берём продолжение того же контракта (например, «Бакалея» на новый квартал).
+            var sourceContract = copyFrom != null ? _supplier?.FindContract(copyFrom.ContractId) : null;
             RebuildContracts();
-            _contract = RequestLogic.PickContract(_supplier, _deliveryDate.Value);
+            _contract = PickContract(_deliveryDate.Value, sourceContract);
             if (_contract != null)
                 SetNumberAutomatically();
 
@@ -506,12 +527,21 @@ namespace DetsadSklad.ViewModels
             }
         }
 
+        /// <summary>Контракт под дату поставки; если действующий контракт один — его, даже если дата в срок не попадает (покажем предупреждение).</summary>
+        private Contract PickContract(DateTime date, Contract like) =>
+            RequestLogic.PickContract(_supplier, date, like) ?? (Contracts.Count == 1 ? Contracts[0] : null);
+
+        /// <summary>Новую заявку оформляем только по действующему контракту; у старой заявки в списке остаётся и её собственный.</summary>
         private void RebuildContracts()
         {
             Contracts.Clear();
             if (_supplier == null)
                 return;
-            foreach (var contract in _supplier.Contracts.OrderByDescending(c => c.ValidTo))
+            var contracts = RequestLogic.OpenContracts(_supplier, DateTime.Today);
+            var own = _existing == null ? null : _supplier.FindContract(_existing.ContractId);
+            if (own != null && !contracts.Contains(own))
+                contracts.Insert(0, own);
+            foreach (var contract in contracts)
                 Contracts.Add(contract);
         }
 
@@ -520,11 +550,12 @@ namespace DetsadSklad.ViewModels
             CatalogItems.Clear();
             IEnumerable<Product> products = _data.Products;
             if (!_showAllProducts && _supplier != null)
-                products = products.Where(p => p.SupplierId == null || p.SupplierId == _supplier.Id);
+                products = RequestLogic.ProductsFor(_data, _supplier, _contract);
             var words = (_catalogSearch ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var row in products.Select(p => new ProductRow(p, _data)).Where(r => r.Matches(words)).OrderBy(r => r.Name).ThenBy(r => r.Subtitle))
                 CatalogItems.Add(row);
             OnPropertyChanged(nameof(HasCatalogItems));
+            OnPropertyChanged(nameof(CatalogNote));
         }
 
         private void AddProduct(Product product)
@@ -574,7 +605,9 @@ namespace DetsadSklad.ViewModels
 
         private void CreateProduct()
         {
-            var form = new ProductForm(_data, Product.CreateNew(_supplier?.Id));
+            // Новый продукт сразу получает категорию контракта и виден в этой заявке.
+            var category = string.IsNullOrWhiteSpace(_contract?.Note) ? null : _contract.Note.Trim();
+            var form = new ProductForm(_data, Product.CreateNew(_supplier?.Id, category));
             var dialog = new ProductDialog { DataContext = form, Owner = System.Windows.Application.Current.MainWindow };
             if (dialog.ShowDialog() != true)
                 return;

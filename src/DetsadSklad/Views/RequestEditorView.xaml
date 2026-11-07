@@ -72,6 +72,9 @@
                 <Border Style="{StaticResource SmallBanner}" Visibility="{Binding NoContractsNote, Converter={StaticResource NullToCollapsed}}">
                     <TextBlock Text="{Binding NoContractsNote}" TextWrapping="Wrap" Foreground="{StaticResource WarnBrush}"/>
                 </Border>
+                <Border Style="{StaticResource SmallBanner}" Visibility="{Binding ChooseContractNote, Converter={StaticResource NullToCollapsed}}">
+                    <TextBlock Text="{Binding ChooseContractNote}" TextWrapping="Wrap" Foreground="{StaticResource WarnBrush}"/>
+                </Border>
                 <Border Style="{StaticResource SmallBanner}" Visibility="{Binding ContractWarning, Converter={StaticResource NullToCollapsed}}">
                     <TextBlock Text="{Binding ContractWarning}" TextWrapping="Wrap" Foreground="{StaticResource WarnBrush}"/>
                 </Border>
@@ -192,8 +195,10 @@
                             <ui:Icon Width="18" Height="18" HorizontalAlignment="Left" Margin="10,0,0,0" IsHitTestVisible="False"
                                      Foreground="{StaticResource MutedBrush}" Data="{StaticResource IconSearch}"/>
                         </Grid>
-                        <CheckBox Content="Всех поставщиков" IsChecked="{Binding ShowAllProducts}" Margin="0,9,0,0"
-                                  ToolTip="Показать продукты, закреплённые за другими поставщиками"/>
+                        <TextBlock Text="{Binding CatalogNote}" Style="{StaticResource Muted}" FontSize="13" Margin="0,8,0,0"
+                                   Visibility="{Binding CatalogNote, Converter={StaticResource NullToCollapsed}}"/>
+                        <CheckBox Content="Все продукты" IsChecked="{Binding ShowAllProducts}" Margin="0,9,0,0"
+                                  ToolTip="Показать и продукты других поставщиков и категорий"/>
                     </StackPanel>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">

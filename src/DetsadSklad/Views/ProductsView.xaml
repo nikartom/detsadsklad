@@ -3,88 +3,139 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="clr-namespace:DetsadSklad.Controls"
              xmlns:views="clr-namespace:DetsadSklad.Views">
-    <Grid Margin="24,20,24,20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+    <Grid>
+        <!-- Список продуктов -->
+        <Grid Margin="24,20,24,20" Visibility="{Binding IsListVisible, Converter={StaticResource BoolToCollapsed}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <DockPanel Margin="0,0,0,14">
-            <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Новый продукт" MinHeight="46" FontSize="16"
-                    ui:Ui.Icon="{StaticResource IconPlus}" Command="{Binding AddCommand}"/>
-            <TextBlock Text="Продукты" Style="{StaticResource PageTitle}" VerticalAlignment="Center"/>
-        </DockPanel>
+            <DockPanel Margin="0,0,0,14">
+                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Новый продукт" MinHeight="46" FontSize="16"
+                        ui:Ui.Icon="{StaticResource IconPlus}" Command="{Binding AddCommand}"/>
+                <TextBlock Text="Продукты" Style="{StaticResource PageTitle}" VerticalAlignment="Center"/>
+            </DockPanel>
 
-        <Grid Grid.Row="1" Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="280"/>
-            </Grid.ColumnDefinitions>
-            <Grid>
-                <TextBox Padding="36,0,10,0" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" ui:Ui.Hint="Поиск продукта" AutomationProperties.Name="Поиск продукта"/>
-                <ui:Icon Width="19" Height="19" HorizontalAlignment="Left" Margin="11,0,0,0" IsHitTestVisible="False"
-                         Foreground="{StaticResource MutedBrush}" Data="{StaticResource IconSearch}"/>
+            <Grid Grid.Row="1" Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="240"/>
+                    <ColumnDefinition Width="240"/>
+                </Grid.ColumnDefinitions>
+                <Grid>
+                    <TextBox Padding="36,0,10,0" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" ui:Ui.Hint="Поиск продукта" AutomationProperties.Name="Поиск продукта"/>
+                    <ui:Icon Width="19" Height="19" HorizontalAlignment="Left" Margin="11,0,0,0" IsHitTestVisible="False"
+                             Foreground="{StaticResource MutedBrush}" Data="{StaticResource IconSearch}"/>
+                </Grid>
+                <ComboBox Grid.Column="1" Margin="10,0,0,0" ItemsSource="{Binding CategoryOptions}" SelectedItem="{Binding CategoryFilter}" AutomationProperties.Name="Категория"/>
+                <ComboBox Grid.Column="2" Margin="10,0,0,0" ItemsSource="{Binding SupplierOptions}" SelectedItem="{Binding SupplierFilter}" AutomationProperties.Name="Поставщик"/>
             </Grid>
-            <ComboBox Grid.Column="1" Margin="10,0,0,0" ItemsSource="{Binding SupplierOptions}" SelectedItem="{Binding SupplierFilter}" AutomationProperties.Name="Поставщик"/>
-        </Grid>
 
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="1.4*"/>
-            </Grid.ColumnDefinitions>
-
-            <Border Style="{StaticResource Card}">
+            <Border Grid.Row="2" Style="{StaticResource Card}">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutomationProperties.Name="Список продуктов">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                    <TextBlock Style="{StaticResource Muted}" FontSize="16" TextAlignment="Center" Margin="30" VerticalAlignment="Center" Text="Здесь пока пусто."
+                    <Grid Margin="20,11,32,9">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="120"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource ColumnHeader}" Text="Наименование"/>
+                        <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="Категория"/>
+                        <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="Поставщик"/>
+                        <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="Цена, руб." HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeader}" Text="Ед." Margin="16,0,0,0"/>
+                    </Grid>
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" VerticalAlignment="Bottom"/>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Visible" Focusable="False">
+                        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Список продуктов">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- Нажали на продукт — он открылся на месте списка -->
+                                    <Button Cursor="Hand" FocusVisualStyle="{x:Null}" AutomationProperties.Name="{Binding Name}"
+                                            Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Box" Background="Transparent" BorderBrush="{StaticResource DisabledBrush}" BorderThickness="0,0,0,1" Padding="20,12">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="190"/>
+                                                            <ColumnDefinition Width="190"/>
+                                                            <ColumnDefinition Width="110"/>
+                                                            <ColumnDefinition Width="120"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,0"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding CategoryText}" TextWrapping="Wrap" Margin="0,0,12,0"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding SupplierName}" TextWrapping="Wrap" Margin="0,0,12,0"/>
+                                                        <TextBlock Grid.Column="3" Text="{Binding PriceText}" HorizontalAlignment="Right" FontWeight="SemiBold"/>
+                                                        <TextBlock Grid.Column="4" Text="{Binding Unit}" TextWrapping="Wrap" Margin="16,0,0,0"/>
+                                                    </Grid>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Box" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                                        <Setter TargetName="Box" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <TextBlock Grid.Row="1" Style="{StaticResource Muted}" FontSize="16" TextAlignment="Center" Margin="30" VerticalAlignment="Center" Text="Здесь пока пусто."
                                Visibility="{Binding HasRows, Converter={StaticResource BoolToCollapsed}, ConverterParameter=invert}"/>
-                    <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="14,9">
+                    <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,9">
                         <TextBlock Style="{StaticResource Muted}" Text="{Binding CountText}"/>
                     </Border>
                 </Grid>
             </Border>
+        </Grid>
 
-            <Border Grid.Column="2" Style="{StaticResource Card}" Visibility="{Binding HasForm, Converter={StaticResource BoolToCollapsed}}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
-                        <StackPanel Margin="20,16,18,14">
-                            <TextBlock Text="{Binding FormTitle}" Style="{StaticResource SectionTitle}" FontSize="20" Margin="0,0,0,12"/>
-                            <views:ProductFormView DataContext="{Binding Form}"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                    <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,12">
-                        <DockPanel>
-                            <Button Style="{StaticResource PrimaryButton}" Content="Сохранить" MinWidth="130" ui:Ui.Icon="{StaticResource IconCheck}" Command="{Binding SaveCommand}"/>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding IsExisting, Converter={StaticResource BoolToCollapsed}}">
-                                <Button Style="{StaticResource SecondaryButton}" Content="Копировать" Padding="10,0" ui:Ui.Icon="{StaticResource IconCopy}"
-                                        ToolTip="Завести такой же продукт для другого поставщика" Command="{Binding CopyCommand}"/>
-                                <Button Style="{StaticResource DangerButton}" Content="Удалить" Margin="8,0,0,0" Padding="10,0" ui:Ui.Icon="{StaticResource IconTrash}" Command="{Binding DeleteCommand}"/>
-                            </StackPanel>
-                            <TextBlock Text="{Binding SavedNote}" Margin="12,0,6,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryHoverBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                        </DockPanel>
-                    </Border>
-                </Grid>
+        <!-- Продукт открыт: на месте списка -->
+        <Grid Margin="24,16,24,16" Visibility="{Binding HasForm, Converter={StaticResource BoolToCollapsed}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel Margin="0,0,0,10">
+                <Button Style="{StaticResource GhostButton}" Content="К списку продуктов" ui:Ui.Icon="{StaticResource IconBack}" Margin="-10,0,14,0"
+                        Command="{Binding CancelCommand}"/>
+                <TextBlock Text="{Binding FormTitle}" Style="{StaticResource PageTitle}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
+
+            <Border Grid.Row="1" Style="{StaticResource Card}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <views:ProductFormView DataContext="{Binding Form}" Margin="22,18,20,18" MaxWidth="900" HorizontalAlignment="Left"/>
+                </ScrollViewer>
             </Border>
+
+            <DockPanel Grid.Row="2" Margin="0,12,0,0">
+                <StackPanel Orientation="Horizontal" Visibility="{Binding IsExisting, Converter={StaticResource BoolToCollapsed}}">
+                    <Button Style="{StaticResource DangerButton}" Content="Удалить" ui:Ui.Icon="{StaticResource IconTrash}" Command="{Binding DeleteCommand}"/>
+                    <Button Style="{StaticResource SecondaryButton}" Content="Копировать для другого поставщика" Margin="10,0,0,0" ui:Ui.Icon="{StaticResource IconCopy}"
+                            ToolTip="Завести такой же продукт для другого поставщика" Command="{Binding CopyCommand}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource SecondaryButton}" Content="Отмена" MinWidth="120" MinHeight="46" Command="{Binding CancelCommand}"/>
+                    <Button Style="{StaticResource PrimaryButton}" Content="Сохранить" MinWidth="150" MinHeight="46" FontSize="16" Margin="10,0,0,0"
+                            ui:Ui.Icon="{StaticResource IconCheck}" Command="{Binding SaveCommand}"/>
+                </StackPanel>
+            </DockPanel>
         </Grid>
     </Grid>
 </UserControl>

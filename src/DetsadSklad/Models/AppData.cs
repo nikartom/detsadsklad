@@ -69,7 +69,10 @@ namespace DetsadSklad.Models
         public Contract FindContract(Guid id) => Contracts.FirstOrDefault(c => c.Id == id);
     }
 
-    /// <summary>Контракт с поставщиком; заключается каждый квартал.</summary>
+    /// <summary>
+    /// Контракт с поставщиком; заключается каждый квартал. У одного поставщика может быть
+    /// несколько контрактов на разные группы продуктов: бакалея, заморозка, молочная продукция.
+    /// </summary>
     [DataContract(Namespace = "")]
     public class Contract
     {
@@ -79,9 +82,18 @@ namespace DetsadSklad.Models
         [DataMember] public DateTime ValidFrom { get; set; }
         [DataMember] public DateTime ValidTo { get; set; }
 
-        public string DisplayName => $"№ {Number} от {SignedOn:dd.MM.yyyy}";
+        /// <summary>
+        /// Что поставляет: «Бакалея». Это же и категория продуктов — в заявке по контракту
+        /// предлагаются продукты с такой категорией.
+        /// </summary>
+        [DataMember] public string Note { get; set; }
+
+        public string DisplayName => $"№ {Number} от {SignedOn:dd.MM.yyyy}" + (string.IsNullOrWhiteSpace(Note) ? "" : " · " + Note.Trim());
         public string PeriodText => $"{ValidFrom:dd.MM.yyyy} – {ValidTo:dd.MM.yyyy}";
         public bool Covers(DateTime date) => date.Date >= ValidFrom.Date && date.Date <= ValidTo.Date;
+
+        /// <summary>Срок вышел — контракт в завершённых, новые заявки по нему не оформляются.</summary>
+        public bool IsFinished(DateTime today) => ValidTo.Date < today.Date;
     }
 
     /// <summary>
@@ -96,6 +108,9 @@ namespace DetsadSklad.Models
 
         [DataMember] public Guid Id { get; set; } = Guid.NewGuid();
         [DataMember] public string Name { get; set; }
+
+        /// <summary>Группа продуктов: «Бакалея», «Молочная продукция». По ней продукты подбираются к контракту.</summary>
+        [DataMember] public string Category { get; set; }
         [DataMember] public string Kind { get; set; }
         [DataMember] public string Grade { get; set; }
 
@@ -137,9 +152,10 @@ namespace DetsadSklad.Models
             }
         }
 
-        public static Product CreateNew(Guid? supplierId) => new Product
+        public static Product CreateNew(Guid? supplierId, string category = null) => new Product
         {
             SupplierId = supplierId,
+            Category = category,
             Unit = "кг",
             SuitableForChildren = true,
             IndividualPackaging = true,

@@ -20,14 +20,38 @@ namespace DetsadSklad.Services
             return data.Requests.Any(r => r.ContractId == contractId && r.Number == number && r.Id != exceptRequestId);
         }
 
-        /// <summary>Контракт, действующий на дату; если такого нет — самый свежий.</summary>
-        public static Contract PickContract(Supplier supplier, DateTime date)
+        /// <summary>
+        /// Контракт, действующий на дату. Если таких несколько (бакалея, заморозка…), берём продолжение
+        /// контракта <paramref name="like"/>; без подсказки не угадываем — пусть пользователь выберет сам.
+        /// </summary>
+        public static Contract PickContract(Supplier supplier, DateTime date, Contract like = null)
         {
             if (supplier == null)
                 return null;
-            return supplier.Contracts.Where(c => c.Covers(date)).OrderByDescending(c => c.SignedOn).FirstOrDefault()
-                ?? supplier.Contracts.OrderByDescending(c => c.ValidTo).FirstOrDefault();
+            var covering = supplier.Contracts.Where(c => c.Covers(date)).OrderByDescending(c => c.SignedOn).ToList();
+            if (like != null)
+            {
+                var same = covering.FirstOrDefault(c => IsSameKind(c, like));
+                if (same != null)
+                    return same;
+            }
+            return covering.Count == 1 ? covering[0] : null;
         }
+
+        /// <summary>Контракты, по которым можно оформить новую заявку: срок ещё не вышел.</summary>
+        public static List<Contract> OpenContracts(Supplier supplier, DateTime today)
+        {
+            if (supplier == null)
+                return new List<Contract>();
+            return supplier.Contracts.Where(c => !c.IsFinished(today)).OrderBy(c => c.ValidFrom).ThenBy(c => c.Note).ToList();
+        }
+
+        /// <summary>Один и тот же контракт, перезаключённый на новый срок: то же примечание.</summary>
+        public static bool IsSameKind(Contract a, Contract b) => SameText(a.Note, b.Note);
+
+        /// <summary>Сравнение без учёта регистра и пробелов по краям: «бакалея » = «Бакалея».</summary>
+        public static bool SameText(string a, string b) =>
+            string.Equals((a ?? "").Trim(), (b ?? "").Trim(), StringComparison.OrdinalIgnoreCase);
 
         /// <summary>Следующий рабочий день: заявка в пятницу — поставка в понедельник.</summary>
         public static DateTime NextWorkday(DateTime date)
@@ -38,15 +62,48 @@ namespace DetsadSklad.Services
             return next;
         }
 
-        /// <summary>Период нового контракта: квартал после предыдущего или текущий квартал.</summary>
-        public static void SuggestContractPeriod(Supplier supplier, DateTime today, out DateTime from, out DateTime to)
+        /// <summary>Новый контракт: заключён сегодня и с сегодняшнего дня действует до конца квартала.</summary>
+        public static Contract SuggestNewContract(DateTime today)
         {
-            var lastEnd = supplier?.Contracts.OrderByDescending(c => c.ValidTo).FirstOrDefault()?.ValidTo;
-            var anchor = lastEnd.HasValue ? lastEnd.Value.Date.AddDays(1) : today.Date;
-            GetQuarter(anchor, out from, out to);
-            if (lastEnd.HasValue)
-                from = anchor;
+            GetQuarter(today, out _, out var to);
+            return new Contract { SignedOn = today.Date, ValidFrom = today.Date, ValidTo = to };
         }
+
+        /// <summary>
+        /// Продление: то же примечание, поэтому продукты заново заводить не нужно.
+        /// Действует со дня подписания, но не раньше, чем закончится прежний, — и до конца того квартала.
+        /// </summary>
+        public static Contract SuggestRenewal(Contract previous, DateTime today)
+        {
+            var dayAfter = previous.ValidTo.Date.AddDays(1);
+            var from = dayAfter > today.Date ? dayAfter : today.Date;
+            GetQuarter(from, out _, out var to);
+            return new Contract
+            {
+                Note = previous.Note,
+                SignedOn = today.Date,
+                ValidFrom = from,
+                ValidTo = to
+            };
+        }
+
+        /// <summary>
+        /// Продукты для заявки по контракту: продукты поставщика с категорией, как в примечании
+        /// контракта, и продукты без категории. Если с такой категорией нет ни одного продукта
+        /// (примечание написано по-другому или категории ещё не проставлены) — все продукты поставщика.
+        /// </summary>
+        public static IEnumerable<Product> ProductsFor(AppData data, Supplier supplier, Contract contract)
+        {
+            var own = data.Products.Where(p => p.SupplierId == null || p.SupplierId == supplier?.Id).ToList();
+            if (contract == null || string.IsNullOrWhiteSpace(contract.Note) || !own.Any(p => SameText(p.Category, contract.Note)))
+                return own;
+            return own.Where(p => string.IsNullOrWhiteSpace(p.Category) || SameText(p.Category, contract.Note));
+        }
+
+        /// <summary>Продукты по контракту отобраны по категории (а не показаны все).</summary>
+        public static bool FiltersByCategory(AppData data, Supplier supplier, Contract contract) =>
+            contract != null && !string.IsNullOrWhiteSpace(contract.Note)
+            && data.Products.Any(p => (p.SupplierId == null || p.SupplierId == supplier?.Id) && SameText(p.Category, contract.Note));
 
         public static void GetQuarter(DateTime date, out DateTime from, out DateTime to)
         {

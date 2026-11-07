@@ -423,9 +423,10 @@
         </Setter>
     </Style>
 
+    <!-- Стандартный календарь мелкий: увеличиваем целиком, чтобы числа было легко разглядеть и попасть мышью -->
     <Style x:Key="LargeCalendar" TargetType="Calendar">
         <Setter Property="LayoutTransform">
-            <Setter.Value><ScaleTransform ScaleX="1.25" ScaleY="1.25"/></Setter.Value>
+            <Setter.Value><ScaleTransform ScaleX="1.7" ScaleY="1.7"/></Setter.Value>
         </Setter>
     </Style>
 

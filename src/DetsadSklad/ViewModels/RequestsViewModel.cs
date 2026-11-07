@@ -30,16 +30,19 @@ namespace DetsadSklad.ViewModels
     /// <summary>Заявка в списке.</summary>
     public class RequestRow
     {
-        public RequestRow(SupplyRequest request)
+        public RequestRow(SupplyRequest request, AppData data)
         {
             Request = request;
+            var note = data.FindSupplier(request.SupplierId)?.FindContract(request.ContractId)?.Note;
+            ContractText = $"Контракт № {request.ContractNumber} от {RuFormat.ShortDate(request.ContractDate)}"
+                + (string.IsNullOrWhiteSpace(note) ? "" : " · " + note.Trim());
         }
 
         public SupplyRequest Request { get; }
         public string NumberText => "№" + Request.Number;
         public string TitleText => "Заявка №" + Request.Number;
         public string Supplier => Request.SupplierShortName;
-        public string ContractText => $"Контракт № {Request.ContractNumber} от {RuFormat.ShortDate(Request.ContractDate)}";
+        public string ContractText { get; }
         public string SentText => RuFormat.ShortDate(Request.SentDate);
         public string DeliveryText => RuFormat.ShortDate(Request.DeliveryDate);
         public string TotalText => RuFormat.Money(Request.Total);
@@ -84,6 +87,8 @@ namespace DetsadSklad.ViewModels
         public ICommand SaveAsCommand { get; }
         public ICommand ShowInFolderCommand { get; }
         public ICommand ClearFiltersCommand { get; }
+        public ICommand ShowCommand { get; }
+        public ICommand BackCommand { get; }
 
         public RequestsViewModel(MainViewModel main, SupplyRequest select)
         {
@@ -113,6 +118,8 @@ namespace DetsadSklad.ViewModels
             SaveAsCommand = new RelayCommand(SaveAs, () => Selected != null);
             ShowInFolderCommand = new RelayCommand(() => WithDocument(path => _main.Documents.ShowInFolder(path)), () => Selected != null);
             ClearFiltersCommand = new RelayCommand(ClearFilters);
+            ShowCommand = new RelayCommand(row => Selected = (RequestRow)row);
+            BackCommand = new RelayCommand(() => Selected = null);
 
             Refresh(select);
         }
@@ -149,17 +156,23 @@ namespace DetsadSklad.ViewModels
 
         public bool CanFilterByContract => _supplierFilter?.Value != null;
 
+        /// <summary>Открытая заявка; null — показан список.</summary>
         public RequestRow Selected
         {
             get => _selected;
             set
             {
-                if (Set(ref _selected, value))
-                    OnPropertyChanged(nameof(HasSelection));
+                if (!Set(ref _selected, value))
+                    return;
+                OnPropertyChanged(nameof(HasSelection));
+                OnPropertyChanged(nameof(IsListVisible));
+                // Кнопки заявки должны сразу стать доступными, не дожидаясь движения мыши.
+                CommandManager.InvalidateRequerySuggested();
             }
         }
 
         public bool HasSelection => _selected != null;
+        public bool IsListVisible => _selected == null;
 
         public string Summary
         {
@@ -191,7 +204,6 @@ namespace DetsadSklad.ViewModels
 
         private void Refresh(SupplyRequest select = null)
         {
-            var keep = select ?? Selected?.Request;
             var found = _main.Store.Data.Requests
                 .Where(MatchesFilters)
                 .OrderByDescending(r => r.SentDate)
@@ -200,10 +212,9 @@ namespace DetsadSklad.ViewModels
 
             Rows.Clear();
             foreach (var request in found)
-                Rows.Add(new RequestRow(request));
-            _selected = null;
-
-            Selected = Rows.FirstOrDefault(r => r.Request == keep) ?? Rows.FirstOrDefault();
+                Rows.Add(new RequestRow(request, _main.Store.Data));
+            // После сохранения или «К списку» из заявки сразу открываем её же; иначе — список.
+            Selected = select == null ? null : Rows.FirstOrDefault(r => r.Request == select);
             Summary = found.Count == 0 ? "" : $"Найдено заявок: {found.Count}, на сумму {RuFormat.Money(found.Sum(r => r.Total))}";
             OnPropertyChanged(nameof(HasRows));
             OnPropertyChanged(nameof(EmptyText));

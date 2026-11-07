@@ -19,6 +19,13 @@ namespace DetsadSklad.Services
         public static List<string> Packaging(AppData data) => Build(DefaultPackaging, data.Products.Select(p => p.Packaging));
         public static List<string> Countries(AppData data) => Build(DefaultCountries, data.Products.Select(p => p.Country));
 
+        /// <summary>Категории — это примечания контрактов («Бакалея», «Заморозка») и уже заданные у продуктов.</summary>
+        public static List<string> Categories(AppData data) => Build(new string[0],
+            data.Suppliers.SelectMany(s => s.Contracts).Select(c => c.Note).Concat(data.Products.Select(p => p.Category)));
+
+        /// <summary>Только те категории, что есть у продуктов, — для фильтра в каталоге.</summary>
+        public static List<string> UsedCategories(AppData data) => Build(new string[0], data.Products.Select(p => p.Category));
+
         private static List<string> Build(IEnumerable<string> defaults, IEnumerable<string> used)
         {
             var result = defaults.ToList();

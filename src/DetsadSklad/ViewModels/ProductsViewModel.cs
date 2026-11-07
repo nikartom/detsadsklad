@@ -17,12 +17,22 @@ namespace DetsadSklad.ViewModels
         {
             Product = product;
             var supplier = product.SupplierId.HasValue ? data.FindSupplier(product.SupplierId.Value) : null;
-            Subtitle = $"{supplier?.ShortName ?? "Любой поставщик"} · {product.PriceText}";
+            var category = string.IsNullOrWhiteSpace(product.Category) ? "" : product.Category.Trim() + " · ";
+            Subtitle = $"{supplier?.ShortName ?? "Любой поставщик"} · {category}{product.PriceText}";
+            SupplierName = supplier?.ShortName ?? "Любой";
+            CategoryText = string.IsNullOrWhiteSpace(product.Category) ? "—" : product.Category.Trim();
+            PriceText = RuFormat.DocMoney(product.Price);
         }
 
         public Product Product { get; }
         public string Name => Product.Name;
         public string Subtitle { get; }
+
+        // Колонки таблицы в списке продуктов.
+        public string SupplierName { get; }
+        public string CategoryText { get; }
+        public string PriceText { get; }
+        public string Unit => Product.Unit;
         public string Details => Product.DocumentName;
 
         public bool Matches(string[] words) => words.All(word =>
@@ -62,6 +72,7 @@ namespace DetsadSklad.ViewModels
             _features = product.Features;
             _suitableForChildren = product.SuitableForChildren;
             _individualPackaging = product.IndividualPackaging;
+            CategoryChoice = new ChoiceList(ProductChoices.Categories(data), product.Category, "Без категории", "Новая категория", "Например: Бакалея", NotifyChanged);
             GradeChoice = new ChoiceList(ProductChoices.Grades(data), product.Grade, "Не указан", "Новый сорт", "Например: Высший", NotifyChanged);
             PackagingChoice = new ChoiceList(ProductChoices.Packaging(data), product.Packaging, "Не указана", "Новая упаковка", "Например: массой до 1 кг", NotifyChanged);
             CountryChoice = new ChoiceList(ProductChoices.Countries(data), product.Country, "Не указана", "Новая страна", "Например: Республика Казахстан", NotifyChanged);
@@ -75,6 +86,7 @@ namespace DetsadSklad.ViewModels
         public string Features { get => _features; set => Edit(ref _features, value); }
         public bool SuitableForChildren { get => _suitableForChildren; set => Edit(ref _suitableForChildren, value); }
         public bool IndividualPackaging { get => _individualPackaging; set => Edit(ref _individualPackaging, value); }
+        public ChoiceList CategoryChoice { get; }
         public ChoiceList GradeChoice { get; }
         public ChoiceList PackagingChoice { get; }
         public ChoiceList CountryChoice { get; }
@@ -106,6 +118,7 @@ namespace DetsadSklad.ViewModels
         {
             RuFormat.TryParseDecimal(_priceText, out var price);
             product.Name = (_name ?? "").Trim();
+            product.Category = CategoryChoice.Value;
             product.Kind = (_kind ?? "").Trim();
             product.Grade = GradeChoice.Value;
             product.Features = (_features ?? "").Trim();
@@ -160,8 +173,8 @@ namespace DetsadSklad.ViewModels
         private readonly AppData _data;
         private string _search = "";
         private FilterOption<Guid?> _supplierFilter;
+        private FilterOption<string> _categoryFilter;
         private Product _selected;
-        private bool _refreshing;
         private ProductForm _form;
         private bool _isNew;
         private bool _isDirty;
@@ -169,9 +182,12 @@ namespace DetsadSklad.ViewModels
 
         public ObservableCollection<ProductRow> Rows { get; } = new ObservableCollection<ProductRow>();
         public List<FilterOption<Guid?>> SupplierOptions { get; }
+        public List<FilterOption<string>> CategoryOptions { get; }
 
         public ICommand AddCommand { get; }
+        public ICommand OpenCommand { get; }
         public ICommand SaveCommand { get; }
+        public ICommand CancelCommand { get; }
         public ICommand CopyCommand { get; }
         public ICommand DeleteCommand { get; }
 
@@ -184,13 +200,22 @@ namespace DetsadSklad.ViewModels
             SupplierOptions.AddRange(_data.Suppliers.OrderBy(s => s.ShortName).Select(s => new FilterOption<Guid?>(s.ShortName, s.Id)));
             _supplierFilter = SupplierOptions[0];
 
+            // null — все категории, пустая строка — продукты без категории.
+            CategoryOptions = new List<FilterOption<string>> { new FilterOption<string>("Все категории", null) };
+            CategoryOptions.AddRange(ProductChoices.UsedCategories(_data).Select(c => new FilterOption<string>(c, c)));
+            if (_data.Products.Any(p => string.IsNullOrWhiteSpace(p.Category)))
+                CategoryOptions.Add(new FilterOption<string>("Без категории", ""));
+            _categoryFilter = CategoryOptions[0];
+
             AddCommand = new RelayCommand(AddNew);
-            SaveCommand = new RelayCommand(() => Save());
+            OpenCommand = new RelayCommand(row => Open(((ProductRow)row).Product));
+            SaveCommand = new RelayCommand(() => { if (Save()) BackToList(); });
+            CancelCommand = new RelayCommand(() => { if (CanLeave()) BackToList(); });
             CopyCommand = new RelayCommand(CopyForAnotherSupplier, () => _selected != null);
             DeleteCommand = new RelayCommand(Delete, () => _selected != null);
 
+            // Сначала — только список. Продукт открывается на его месте, когда на него нажали.
             Refresh();
-            Selected = Rows.FirstOrDefault();
         }
 
         public string Search
@@ -205,24 +230,10 @@ namespace DetsadSklad.ViewModels
             set { if (value != null && Set(ref _supplierFilter, value)) Refresh(); }
         }
 
-        public ProductRow Selected
+        public FilterOption<string> CategoryFilter
         {
-            get => Rows.FirstOrDefault(r => r.Product == _selected);
-            set
-            {
-                // Пока список перестраивается, он сам сбрасывает выделение — это не выбор пользователя.
-                if (_refreshing || value?.Product == _selected)
-                    return;
-                if (!CanLeave())
-                {
-                    // Пользователь остался на текущей записи — возвращаем выделение обратно.
-                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => OnPropertyChanged(nameof(Selected))));
-                    return;
-                }
-                _selected = value?.Product;
-                OnPropertyChanged();
-                LoadForm(_selected, isNew: false);
-            }
+            get => _categoryFilter;
+            set { if (value != null && Set(ref _categoryFilter, value)) Refresh(); }
         }
 
         public ProductForm Form
@@ -230,13 +241,16 @@ namespace DetsadSklad.ViewModels
             get => _form;
             private set
             {
-                if (Set(ref _form, value))
-                    OnPropertyChanged(nameof(HasForm));
+                if (!Set(ref _form, value))
+                    return;
+                OnPropertyChanged(nameof(HasForm));
+                OnPropertyChanged(nameof(IsListVisible));
             }
         }
 
         public bool HasForm => _form != null;
-        public string FormTitle => _isNew ? "Новый продукт" : "Продукт";
+        public bool IsListVisible => _form == null;
+        public string FormTitle => _isNew ? "Новый продукт" : _selected?.Name;
         public bool IsExisting => !_isNew;
 
         public string SavedNote
@@ -264,13 +278,26 @@ namespace DetsadSklad.ViewModels
             }
         }
 
+        /// <summary>Открывает продукт на месте списка.</summary>
+        public void Open(Product product)
+        {
+            _selected = product;
+            LoadForm(product, isNew: false);
+        }
+
+        private void BackToList()
+        {
+            _selected = null;
+            LoadForm(null, isNew: false);
+            Refresh();
+        }
+
         private void AddNew()
         {
             if (!CanLeave())
                 return;
             _selected = null;
-            OnPropertyChanged(nameof(Selected));
-            LoadForm(Product.CreateNew(_supplierFilter?.Value), isNew: true);
+            LoadForm(Product.CreateNew(_supplierFilter?.Value, string.IsNullOrEmpty(_categoryFilter?.Value) ? null : _categoryFilter.Value), isNew: true);
         }
 
         // Та же номенклатура у другого поставщика: всё заполнено, остаётся выбрать поставщика и цену.
@@ -281,7 +308,6 @@ namespace DetsadSklad.ViewModels
             var copy = _selected.Copy();
             copy.Price = 0;
             _selected = null;
-            OnPropertyChanged(nameof(Selected));
             LoadForm(copy, isNew: true);
         }
 
@@ -308,6 +334,8 @@ namespace DetsadSklad.ViewModels
             }
             OnPropertyChanged(nameof(FormTitle));
             OnPropertyChanged(nameof(IsExisting));
+            // «Удалить» и «Копировать» должны сразу стать доступными, не дожидаясь движения мыши.
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private bool Save()
@@ -330,11 +358,7 @@ namespace DetsadSklad.ViewModels
             _isDirty = false;
             _isNew = false;
             _selected = product;
-            Refresh();
-            OnPropertyChanged(nameof(FormTitle));
-            OnPropertyChanged(nameof(IsExisting));
             OnPropertyChanged(nameof(CountText));
-            SavedNote = "Сохранено";
             return true;
         }
 
@@ -349,12 +373,8 @@ namespace DetsadSklad.ViewModels
             _data.Products.Remove(_selected);
             _main.Store.Save();
             _isDirty = false;
-            _selected = null;
-            Refresh();
             OnPropertyChanged(nameof(CountText));
-            Selected = Rows.FirstOrDefault();
-            if (_selected == null)
-                LoadForm(null, isNew: false);
+            BackToList();
         }
 
         private void Refresh()
@@ -362,18 +382,25 @@ namespace DetsadSklad.ViewModels
             var words = (_search ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             var found = _data.Products
                 .Where(p => _supplierFilter?.Value == null || p.SupplierId == _supplierFilter.Value)
+                .Where(MatchesCategory)
                 .Select(p => new ProductRow(p, _data))
                 .Where(r => r.Matches(words))
                 .OrderBy(r => r.Name)
                 .ThenBy(r => r.Subtitle)
                 .ToList();
-            _refreshing = true;
             Rows.Clear();
             foreach (var row in found)
                 Rows.Add(row);
-            _refreshing = false;
-            OnPropertyChanged(nameof(Selected));
             OnPropertyChanged(nameof(HasRows));
+        }
+
+        private bool MatchesCategory(Product product)
+        {
+            var wanted = _categoryFilter?.Value;
+            if (wanted == null)
+                return true;
+            var category = (product.Category ?? "").Trim();
+            return string.Equals(category, wanted, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

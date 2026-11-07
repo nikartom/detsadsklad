@@ -60,7 +60,8 @@ namespace DetsadSklad.Views
         private static AskResult Show(string title, string message, string primary, string secondary, string cancel, bool isDangerous)
         {
             var window = new AskWindow(title, message, primary, secondary, cancel, isDangerous);
-            var owner = Application.Current?.MainWindow;
+            // Вопрос из окна контракта должен появиться поверх него, а не за ним.
+            var owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive && !(w is AskWindow)) ?? Application.Current?.MainWindow;
             if (owner != null && owner.IsVisible)
                 window.Owner = owner;
             else
