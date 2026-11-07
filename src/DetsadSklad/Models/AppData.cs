@@ -63,6 +63,9 @@ namespace DetsadSklad.Models
         [DataMember] public string Address { get; set; }
         [DataMember] public string Email { get; set; }
         [DataMember] public string Phone { get; set; }
+
+        /// <summary>ИНН — по нему поставщик узнаётся при загрузке следующего контракта.</summary>
+        [DataMember] public string Inn { get; set; }
         [DataMember] public bool IsActive { get; set; } = true;
         [DataMember] public List<Contract> Contracts { get => _contracts ?? (_contracts = new List<Contract>()); set => _contracts = value; }
 

@@ -353,9 +353,12 @@ namespace DetsadSklad.ViewModels
         private readonly MainViewModel _main;
         private readonly AppData _data;
         private SupplierEditor _editor;
+        private ContractImportViewModel _import;
 
         public ObservableCollection<SupplierRow> Rows { get; } = new ObservableCollection<SupplierRow>();
 
+        public ICommand ImportCommand { get; }
+        public ICommand SaveImportCommand { get; }
         public ICommand AddCommand { get; }
         public ICommand OpenCommand { get; }
         public ICommand SaveCommand { get; }
@@ -371,6 +374,8 @@ namespace DetsadSklad.ViewModels
             SaveCommand = new RelayCommand(() => { if (_editor.Save()) BackToList(); });
             CancelCommand = new RelayCommand(() => { if (CanLeave()) BackToList(); });
             DeleteCommand = new RelayCommand(() => { if (_editor.Delete()) BackToList(); });
+            ImportCommand = new RelayCommand(ChooseContractFile);
+            SaveImportCommand = new RelayCommand(() => { if (_import.Save()) BackToList(); });
             Refresh();
         }
 
@@ -387,8 +392,22 @@ namespace DetsadSklad.ViewModels
             }
         }
 
+        /// <summary>Загружаемый контракт; null — загрузки нет.</summary>
+        public ContractImportViewModel Import
+        {
+            get => _import;
+            private set
+            {
+                if (!Set(ref _import, value))
+                    return;
+                OnPropertyChanged(nameof(IsImporting));
+                OnPropertyChanged(nameof(IsListVisible));
+            }
+        }
+
         public bool IsEditing => _editor != null;
-        public bool IsListVisible => _editor == null;
+        public bool IsImporting => _import != null;
+        public bool IsListVisible => _editor == null && _import == null;
         public bool HasRows => Rows.Count > 0;
 
         public bool CanLeave()
@@ -415,7 +434,60 @@ namespace DetsadSklad.ViewModels
         private void BackToList()
         {
             Editor = null;
+            Import = null;
             Refresh();
+        }
+
+        private void ChooseContractFile()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Выберите файл контракта",
+                Filter = "Контракт (PDF)|*.pdf",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+            };
+            if (dialog.ShowDialog() == true)
+                LoadContract(dialog.FileName);
+        }
+
+        /// <summary>Читает контракт и показывает, что в нём нашлось, на месте списка.</summary>
+        public void LoadContract(string path)
+        {
+            ParsedContract contract;
+            try
+            {
+                contract = ContractPdfReader.Read(System.IO.File.ReadAllBytes(path));
+            }
+            catch (UnsupportedContractException error)
+            {
+                Ask.Info("Такой контракт пока не поддерживается",
+                    error.Message + " Поставщика и контракт можно заполнить вручную: нажмите «Новый поставщик».");
+                return;
+            }
+            catch (Exception error)
+            {
+                // Файл может оказаться чем угодно: другим документом, сканом, повреждённым PDF.
+                // Разбор такого файла не должен ронять программу — сообщаем и пишем подробности в журнал.
+                _main.Store.LogError(error);
+                Ask.Info("Не удалось прочитать файл",
+                    "Сейчас программа понимает контракты площадки " + ContractPdfReader.SupportedNames
+                    + " в формате PDF. Этот файл прочитать не получилось — заполните поставщика и контракт вручную."
+                    + Environment.NewLine + Environment.NewLine + error.Message);
+                return;
+            }
+            if (contract.Items.Count == 0 && string.IsNullOrWhiteSpace(contract.SupplierShortName) && string.IsNullOrWhiteSpace(contract.Number))
+            {
+                Ask.Info("Контракт не найден",
+                    "В этом файле не нашлось ни поставщика, ни номера контракта, ни спецификации. Возможно, это другой документ или скан — тогда заполните поставщика вручную.");
+                return;
+            }
+            ShowImport(contract, System.IO.Path.GetFileName(path));
+        }
+
+        /// <summary>Показывает прочитанный контракт для проверки на месте списка.</summary>
+        public void ShowImport(ParsedContract contract, string fileName)
+        {
+            Import = new ContractImportViewModel(_main.Store, contract, fileName);
         }
 
         private void Refresh()

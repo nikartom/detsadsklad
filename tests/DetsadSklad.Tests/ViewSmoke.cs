@@ -101,6 +101,10 @@ namespace DetsadSklad.Tests
             Snap(window, "5-новый-поставщик");
             suppliers.CancelCommand.Execute(null);
             Flush();
+            suppliers.ShowImport(ContractPdfReader.Read(TestContract.Build()), "Контракт.pdf");
+            Snap(window, "5a-загрузка-контракта");
+            suppliers.CancelCommand.Execute(null);
+            Flush();
 
             main.ShowProductsCommand.Execute(null);
             Snap(window, "6-продукты");

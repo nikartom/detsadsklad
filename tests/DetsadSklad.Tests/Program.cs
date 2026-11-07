@@ -54,7 +54,16 @@ namespace DetsadSklad.Tests
             Run(nameof(ChoicesCombineDefaultsWithUsedValues), ChoicesCombineDefaultsWithUsedValues);
             Run(nameof(DefaultsContainNoCatalogData), DefaultsContainNoCatalogData);
             Run(nameof(InitialDataFileIsReadAndUpgraded), InitialDataFileIsReadAndUpgraded);
+            Run(nameof(PdfTextIsReadWithPositions), PdfTextIsReadWithPositions);
+            Run(nameof(ContractIsReadFromPdf), ContractIsReadFromPdf);
+            Run(nameof(OtherContractsAreNotGuessed), OtherContractsAreNotGuessed);
+            Run(nameof(ContractImportCreatesSupplierAndProducts), ContractImportCreatesSupplierAndProducts);
+            Run(nameof(NextQuarterContractUpdatesPrices), NextQuarterContractUpdatesPrices);
             Run(nameof(ScreensOpenWithoutErrors), ScreensOpenWithoutErrors);
+            // Настоящие контракты в репозиторий не кладутся: проверка запускается, только если указать папку с ними.
+            var realContracts = Environment.GetEnvironmentVariable("DETSAD_CONTRACTS");
+            if (!string.IsNullOrEmpty(realContracts))
+                Run(nameof(RealContractsAreReadCompletely), () => RealContractsAreReadCompletely(realContracts));
 
             Console.WriteLine($"Пройдено: {_passed}, не пройдено: {_failed}");
             return _failed == 0 ? 0 : 1;
@@ -554,6 +563,152 @@ namespace DetsadSklad.Tests
                     AssertEqual(AppData.CurrentSchemaVersion, data.SchemaVersion, "версия");
                 }
             });
+        }
+
+        private static void PdfTextIsReadWithPositions()
+        {
+            var pdf = new TestPdf().NewPage()
+                .Text(100, 50, "Привет, мир")
+                .Kerned(100, 70, "Ёлка", -2000, "ель")
+                .VLine(300, 40, 200)
+                .NewPage()
+                .Text(60, 30, "Вторая страница")
+                .Build();
+            var content = DetsadSklad.Services.Pdf.PdfText.Read(pdf);
+            var runs = content.Runs;
+            AssertEqual("Привет, мир", runs[0].Text, "текст через ToUnicode");
+            AssertEqual(100.0, Math.Round(runs[0].X, 1), "x");
+            AssertEqual(50.0, Math.Round(runs[0].Y, 1), "y сверху страницы");
+            AssertEqual(144.0, Math.Round(runs[0].Right, 1), "ширина: 11 букв по 4 пункта");
+            var kerned = runs.Single(r => r.Text == "ель");
+            AssertEqual(132.0, Math.Round(kerned.X, 1), "отступ TJ сдвигает следующее слово");
+            AssertEqual(2, runs.Single(r => r.Text == "Вторая страница").Page, "номер страницы");
+            var line = content.Segments.Single(s => s.IsVertical);
+            AssertEqual(300.0, Math.Round(line.X1, 1), "линия таблицы");
+            AssertEqual(40.0, Math.Round(line.Top, 1), "верх линии");
+            var lines = DetsadSklad.Services.Pdf.PdfText.Lines(runs);
+            AssertEqual("Ёлка  ель", lines[1].Text, "далеко стоящие куски — разные колонки");
+        }
+
+        private static void ContractIsReadFromPdf()
+        {
+            var contract = ContractPdfReader.Read(TestContract.Build());
+            AssertEqual(TestContract.Number, contract.Number, "номер");
+            AssertEqual("Молочная продукция", contract.Note, "что поставляет — из скобок под названием");
+            AssertEqual(new DateTime(2026, 9, 21), contract.SignedOn, "заключён — по последней подписи");
+            AssertEqual(new DateTime(2026, 10, 1), contract.ValidFrom, "срок с");
+            AssertEqual(new DateTime(2026, 12, 31), contract.ValidTo, "срок по");
+            AssertEqual(1250.50m, contract.Price, "цена контракта");
+            AssertEqual("ООО \"Ромашка\"", contract.SupplierShortName, "короткое название — из скобок");
+            AssertEqual("ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ \"РОМАШКА\" (ООО \"Ромашка\")", contract.SupplierFullName, "полное название");
+            AssertEqual(TestContract.Inn, contract.SupplierInn, "ИНН поставщика, а не заказчика");
+            AssertEqual("Российская Федерация, 000000, г. Примерск, ул. Полевая, 5", contract.SupplierAddress, "адрес без подписи поля");
+            AssertEqual("romashka@example.com", contract.SupplierEmail, "почта");
+            AssertEqual("+70000000000", contract.SupplierPhone, "телефон");
+
+            AssertEqual(2, contract.Items.Count, "позиции");
+            var milk = contract.Items[0];
+            AssertEqual(TestContract.FirstItem, milk.Description, "описание: строки склеены, перенос «450-600» без пробела");
+            AssertEqual("10.51.11.111", milk.Okpd, "код ОКПД2");
+            AssertEqual("Литр; Кубический дециметр", milk.Unit, "единица без вылезшего слова соседней колонки");
+            AssertEqual(10m, milk.Quantity, "количество");
+            AssertEqual(65.50m, milk.Price, "цена");
+            AssertEqual(655m, milk.Sum, "сумма");
+            AssertEqual(TestContract.SecondItem, contract.Items[1].Description, "позиция, перешедшая на следующую страницу");
+            AssertEqual("Килограмм", contract.Items[1].Unit, "единица второй позиции");
+            AssertEqual(true, contract.ItemsAreComplete, "сумма позиций равна цене контракта");
+
+            var broken = ContractPdfReader.Read(TestContract.Build(contractPrice: "9999.00"));
+            AssertEqual(false, broken.ItemsAreComplete, "не сошлось с ценой — пользователь увидит предупреждение");
+        }
+
+        private static void OtherContractsAreNotGuessed()
+        {
+            AssertEqual("КУЗБАСС TRADE", ContractPdfReader.Read(TestContract.Build()).ProfileName, "профиль площадки");
+            AssertEqual("КУЗБАСС TRADE", ContractPdfReader.SupportedNames, "поддерживается одна площадка");
+            var other = new TestPdf().NewPage().Text(100, 50, "КОНТРАКТ № 5 на поставку").Text(100, 70, "Спецификация").Build();
+            try
+            {
+                ContractPdfReader.Read(other);
+                throw new Exception("контракт другой площадки прочитан наугад");
+            }
+            catch (UnsupportedContractException error)
+            {
+                AssertEqual(true, error.Message.Contains("КУЗБАСС TRADE"), "в сообщении сказано, что поддерживается");
+            }
+        }
+
+        private static void ContractImportCreatesSupplierAndProducts()
+        {
+            var data = new AppData();
+            var contract = ContractPdfReader.Read(TestContract.Build());
+            AssertEqual(null, ContractImport.FindSupplier(data, contract), "поставщика ещё нет");
+            AssertEqual(null, ContractImport.FindProblem(null, contract), "всё заполнено");
+
+            var supplier = ContractImport.Apply(data, contract, null);
+            AssertEqual(1, data.Suppliers.Count, "поставщик добавлен");
+            AssertEqual(TestContract.Inn, supplier.Inn, "ИНН запомнен");
+            AssertEqual("romashka@example.com", supplier.Email, "почта");
+            var saved = supplier.Contracts.Single();
+            AssertEqual("Молочная продукция", saved.Note, "что поставляет");
+            AssertEqual(new DateTime(2026, 9, 21), saved.SignedOn, "заключён");
+            AssertEqual(new DateTime(2026, 10, 1), saved.ValidFrom, "действует с — из срока поставки");
+            AssertEqual(2, data.Products.Count, "продукты добавлены");
+            var milk = data.Products[0];
+            AssertEqual("Молоко питьевое ГОСТ", milk.Name, "наименование — первая фраза");
+            AssertEqual(TestContract.FirstItem.TrimEnd('.'), milk.DocumentName, "в заявке текст как в контракте");
+            AssertEqual("Литр; Кубический дециметр", milk.Unit, "единица");
+            AssertEqual("Молочная продукция", milk.Category, "категория = что поставляет контракт");
+            AssertEqual(2, RequestLogic.ProductsFor(data, supplier, saved).Count(), "продукты предлагаются в заявке по этому контракту");
+
+            var again = ContractPdfReader.Read(TestContract.Build());
+            AssertEqual(true, ContractImport.FindProblem(supplier, again) != null, "тот же контракт второй раз не загружается");
+
+            // Поставщик, заведённый вручную без ИНН, узнаётся по названию с другими кавычками.
+            var manual = new AppData();
+            manual.Suppliers.Add(new Supplier { ShortName = "ООО «Ромашка»", FullName = "что-то другое" });
+            AssertEqual(manual.Suppliers[0], ContractImport.FindSupplier(manual, contract), "узнан по названию");
+        }
+
+        private static void NextQuarterContractUpdatesPrices()
+        {
+            var data = new AppData();
+            var supplier = ContractImport.Apply(data, ContractPdfReader.Read(TestContract.Build()), null);
+            var next = ContractPdfReader.Read(TestContract.Build(number: "2027.ТЕСТ.1", firstPrice: "70,00", firstSum: "700,00", contractPrice: "1295.50"));
+            AssertEqual(true, next.ItemsAreComplete, "следующий контракт прочитан");
+            AssertEqual(supplier, ContractImport.FindSupplier(data, next), "поставщик узнан по ИНН");
+            AssertEqual(null, ContractImport.FindProblem(supplier, next), "другой номер — можно загружать");
+
+            ContractImport.Apply(data, next, supplier);
+            AssertEqual(1, data.Suppliers.Count, "поставщик не задвоился");
+            AssertEqual(2, supplier.Contracts.Count, "добавлен второй контракт");
+            AssertEqual(2, data.Products.Count, "продукты не задвоились");
+            AssertEqual(70m, data.Products[0].Price, "цена обновилась");
+            AssertEqual(119.10m, data.Products[1].Price, "неизменная цена осталась");
+        }
+
+        private static void RealContractsAreReadCompletely(string folder)
+        {
+            var problems = new List<string>();
+            var files = Directory.GetFiles(folder, "*.pdf");
+            foreach (var path in files)
+            {
+                var contract = ContractPdfReader.Read(File.ReadAllBytes(path));
+                var missing = new[]
+                {
+                    contract.Number == null ? "номер" : null, contract.Note == null ? "что поставляет" : null,
+                    contract.SignedOn == null ? "дата заключения" : null, contract.ValidTo == null ? "срок" : null,
+                    contract.SupplierShortName == null ? "поставщик" : null, contract.SupplierInn == null ? "ИНН" : null,
+                    contract.SupplierAddress == null ? "адрес" : null, contract.SupplierEmail == null ? "почта" : null,
+                    contract.ItemsAreComplete ? null : "позиции не сошлись с ценой"
+                }.Where(m => m != null).ToList();
+                // Печатаем только имя файла и чего не хватает — реквизиты в журнал не попадают.
+                Console.WriteLine($"       {Path.GetFileName(path)}: позиций {contract.Items.Count}" + (missing.Count == 0 ? ", всё прочитано" : ", нет: " + string.Join(", ", missing)));
+                if (missing.Count > 0)
+                    problems.Add(Path.GetFileName(path));
+            }
+            AssertEqual(true, files.Length > 0, "в папке есть PDF");
+            AssertEqual("", string.Join(", ", problems), "контракты прочитаны не полностью");
         }
 
         private static void ScreensOpenWithoutErrors()

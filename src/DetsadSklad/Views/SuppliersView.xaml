@@ -13,6 +13,9 @@
             <DockPanel Margin="0,0,0,14">
                 <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Новый поставщик" MinHeight="46" FontSize="16"
                         ui:Ui.Icon="{StaticResource IconPlus}" Command="{Binding AddCommand}"/>
+                <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Content="Загрузить контракт из файла" MinHeight="46" FontSize="16" Margin="0,0,10,0"
+                        ui:Ui.Icon="{StaticResource IconDownload}" Command="{Binding ImportCommand}"
+                        ToolTip="Выберите PDF контракта — поставщик, контракт и продукты заполнятся сами. Сейчас поддерживаются контракты площадки КУЗБАСС TRADE"/>
                 <TextBlock Text="Поставщики" Style="{StaticResource PageTitle}" VerticalAlignment="Center"/>
             </DockPanel>
 
@@ -195,6 +198,159 @@
                                 ui:Ui.Icon="{StaticResource IconCheck}" Command="{Binding SaveCommand}"/>
                     </StackPanel>
                 </DockPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Загрузка контракта из файла: что нашлось, проверить и сохранить -->
+        <Grid Margin="24,16,24,16" Visibility="{Binding IsImporting, Converter={StaticResource BoolToCollapsed}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel Margin="0,0,0,10">
+                <Button Style="{StaticResource GhostButton}" Content="К списку поставщиков" ui:Ui.Icon="{StaticResource IconBack}" Margin="-10,0,14,0"
+                        Command="{Binding CancelCommand}"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Загрузка контракта" Style="{StaticResource PageTitle}"/>
+                    <TextBlock Text="{Binding Import.SourceText}" Style="{StaticResource Muted}"/>
+                </StackPanel>
+            </DockPanel>
+
+            <Border Grid.Row="1" Style="{StaticResource Card}" DataContext="{Binding Import}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel Margin="22,18,20,18">
+                        <TextBlock Text="Проверьте, всё ли верно, и нажмите «Сохранить»." FontSize="16" Margin="0,0,0,14"/>
+
+                        <TextBlock Text="Поставщик" Style="{StaticResource SectionTitle}" FontSize="18" Margin="0,0,0,8"/>
+                        <Border Style="{StaticResource WarnBanner}" Background="{StaticResource PrimarySoftBrush}" BorderBrush="{StaticResource PrimaryBrush}"
+                                Visibility="{Binding IsKnownSupplier, Converter={StaticResource BoolToCollapsed}}">
+                            <TextBlock Text="{Binding KnownSupplierText}" TextWrapping="Wrap" FontSize="15"/>
+                        </Border>
+                        <StackPanel Visibility="{Binding IsNewSupplier, Converter={StaticResource BoolToCollapsed}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.4*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Короткое название"/>
+                                    <TextBox Text="{Binding ShortName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Короткое название"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Эл. почта"/>
+                                    <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Электронная почта"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Телефон"/>
+                                    <TextBox Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Телефон"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Полное наименование (как в документе)" Margin="0,12,0,5"/>
+                            <TextBox Style="{StaticResource MultilineBox}" Height="58" Text="{Binding FullName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Полное наименование"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Адрес" Margin="0,12,0,5"/>
+                            <TextBox Text="{Binding Address, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Адрес"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Контракт" Style="{StaticResource SectionTitle}" FontSize="18" Margin="0,22,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="150"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Что поставляет"/>
+                                <TextBox Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Что поставляет"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Номер контракта"/>
+                                <TextBox Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Номер контракта"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Заключён"/>
+                                <DatePicker SelectedDate="{Binding SignedOn}" AutomationProperties.Name="Заключён"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Действует по"/>
+                                <DatePicker SelectedDate="{Binding ValidTo}" AutomationProperties.Name="Действует по"/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding PeriodText}" Style="{StaticResource Muted}" Margin="0,6,0,0"
+                                   Visibility="{Binding PeriodText, Converter={StaticResource NullToCollapsed}}"/>
+
+                        <TextBlock Text="{Binding ItemsTitle}" Style="{StaticResource SectionTitle}" FontSize="18" Margin="0,22,0,8"/>
+                        <Border Style="{StaticResource WarnBanner}" Background="{StaticResource PrimarySoftBrush}" BorderBrush="{StaticResource PrimaryBrush}" Margin="0,0,0,10"
+                                Visibility="{Binding IsComplete, Converter={StaticResource BoolToCollapsed}}">
+                            <DockPanel>
+                                <ui:Icon Width="20" Height="20" Foreground="{StaticResource PrimaryBrush}" Data="{StaticResource IconCheck}" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding CheckText}" TextWrapping="Wrap" FontSize="15"/>
+                            </DockPanel>
+                        </Border>
+                        <Border Style="{StaticResource WarnBanner}" Margin="0,0,0,10" Visibility="{Binding IsComplete, Converter={StaticResource BoolToCollapsed}, ConverterParameter=invert}">
+                            <TextBlock Text="{Binding CheckText}" TextWrapping="Wrap" FontSize="15" Foreground="{StaticResource WarnBrush}"/>
+                        </Border>
+
+                        <Grid Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="34"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource ColumnHeader}" Text="№"/>
+                            <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="Наименование (как в контракте)"/>
+                            <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="Ед." Margin="12,0,0,0"/>
+                            <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="Цена, руб." HorizontalAlignment="Right"/>
+                            <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeader}" Text="В программе" Margin="16,0,0,0"/>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Items}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource DisabledBrush}" BorderThickness="0,1,0,0" Padding="0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="34"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="150"/>
+                                                <ColumnDefinition Width="100"/>
+                                                <ColumnDefinition Width="120"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Position}" Foreground="{StaticResource MutedBrush}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Description}" TextWrapping="Wrap" FontSize="14"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Unit}" TextWrapping="Wrap" FontSize="14" Margin="12,0,0,0"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding PriceText}" HorizontalAlignment="Right" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="Status" Grid.Column="4" Text="{Binding StatusText}" Margin="16,0,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsProblem}" Value="True">
+                                            <Setter TargetName="Status" Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                            <Setter TargetName="Status" Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                <Border Style="{StaticResource ErrorBanner}" Margin="0,0,0,10" Visibility="{Binding Import.Error, Converter={StaticResource NullToCollapsed}}">
+                    <TextBlock Text="{Binding Import.Error}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold"/>
+                </Border>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource SecondaryButton}" Content="Отмена" MinWidth="120" MinHeight="46" Command="{Binding CancelCommand}"/>
+                    <Button Style="{StaticResource PrimaryButton}" Content="Сохранить" MinWidth="150" MinHeight="46" FontSize="16" Margin="10,0,0,0"
+                            ui:Ui.Icon="{StaticResource IconCheck}" Command="{Binding SaveImportCommand}"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </Grid>
